@@ -113,7 +113,7 @@ std::string &StatusIconItem::render_(std::string &buffer) {
 WeatherItem::WeatherItem(const std::string &uuid) :
     PageItem(uuid), PageItem_Icon(this, 63878u), // change the default icon color: #ff3131 (red)
     PageItem_DisplayName(this),
-    PageItem_Value(this, "0.0"), float_value_(0.0f) {
+    PageItem_Value(this, "0.0"), float_value_(0.0f), icon_image_index_(0) {
   this->render_buffer_.reserve(this->get_render_buffer_reserve_());
 }
 
@@ -122,7 +122,7 @@ WeatherItem::WeatherItem(
     const std::string &value, const char *weather_condition) :
     PageItem(uuid), PageItem_Icon(this, 63878u), 
     PageItem_DisplayName(this, display_name), 
-    PageItem_Value(this, value), float_value_(0.0f) {
+    PageItem_Value(this, value), float_value_(0.0f), icon_image_index_(0) {
   this->set_icon_by_weather_condition(weather_condition);
   this->render_buffer_.reserve(this->get_render_buffer_reserve_());
 }
@@ -131,10 +131,13 @@ void WeatherItem::accept(PageItemVisitor& visitor) { visitor.visit(*this); }
 
 // valid conditions are found in weather_type
 void WeatherItem::set_icon_by_weather_condition(const std::string &condition) {
-  Icon icon{};
-  if (!try_get_value(WEATHER_ICON_MAP, icon, condition)) return;
-  this->icon_color_ = icon.color;
-  this->icon_value_ = icon.value;
+  // Only use image indices for weather icons now. Do not set font icons/colors.
+  uint16_t img_idx = 0u;
+  if (try_get_value(WEATHER_IMAGE_MAP, img_idx, condition)) {
+    this->icon_image_index_ = img_idx;
+  } else {
+    this->icon_image_index_ = 0u;
+  }
   this->set_render_invalid();
 }
 
@@ -149,7 +152,12 @@ bool WeatherItem::set_value(const std::string &value) {
 std::string &WeatherItem::render_(std::string &buffer) {
   // skip: type,internalName
   buffer.append(2, SEPARATOR);
-  PageItem_Icon::render_(buffer).append(1, SEPARATOR);
+  // If we have a Nextion image index for this weather condition, emit an image token
+  if (this->icon_image_index_ != 0u) {
+    buffer.append("img:").append(std::to_string(this->icon_image_index_)).append(1, SEPARATOR);
+  } else {
+    PageItem_Icon::render_(buffer).append(1, SEPARATOR);
+  }
   PageItem_DisplayName::render_(buffer).append(1, SEPARATOR);
   // allow the value to be fomatted based on locale instead of using the raw string value
   return buffer.append(esphome::str_snprintf("%.1f", 6, this->float_value_))

@@ -102,6 +102,10 @@ public:
 protected:
   float float_value_;
 
+  // Nextion image index to use for weather icon (0 == not set)
+  uint16_t icon_image_index_;
+  // If non-zero, use this image index on the Nextion display instead of font icons
+
   // output: ~~icon~iconColor~displayName~value
   std::string &render_(std::string &buffer) override;
 };

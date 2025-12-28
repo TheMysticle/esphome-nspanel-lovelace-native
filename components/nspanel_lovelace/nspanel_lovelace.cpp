@@ -613,7 +613,7 @@ void NSPanelLovelace::render_page_(render_page_option d) {
   switch (d)
   {
   case render_page_option::screensaver_page:
-    if (current_page && current_page->is_type(page_type::screensaver)) {
+    if (current_page && (current_page->is_type(page_type::screensaver) || current_page->is_type(page_type::screensaver2))) {
       page = current_page;
       break;
     }
@@ -688,11 +688,100 @@ void NSPanelLovelace::render_item_update_(Page *page) {
     return;
   }
   page->render(this->command_buffer_);
+  // Scan for any img:<index>[@component] tokens and send them as direct Nextion commands
+  // Format supported: img:26 or img:26@p1
+  size_t search_pos = 0;
+  while (true) {
+    auto pos = this->command_buffer_.find("img:", search_pos);
+    if (pos == std::string::npos) break;
+    size_t i = pos + 4; // start of digits
+    // parse digits
+    while (i < this->command_buffer_.size() && isdigit(static_cast<unsigned char>(this->command_buffer_[i]))) i++;
+    std::string idx_str = this->command_buffer_.substr(pos + 4, i - (pos + 4));
+    uint16_t idx = 0;
+    if (!idx_str.empty()) idx = static_cast<uint16_t>(std::stoi(idx_str));
+    std::string comp = "p1"; // default component
+    if (i < this->command_buffer_.size() && this->command_buffer_[i] == '@') {
+      // parse component name until separator '~' or end
+      size_t j = i + 1;
+      while (j < this->command_buffer_.size() && this->command_buffer_[j] != SEPARATOR) j++;
+      comp = this->command_buffer_.substr(i + 1, j - (i + 1));
+      i = j;
+    }
+    if (idx != 0) {
+      // send direct Nextion command, e.g. p1.pic=26
+      std::string cmd = comp + ".pic=" + std::to_string(idx);
+      this->send_nextion_command_(cmd);
+    }
+    // remove the img token (leave separator intact if present)
+    // find end position: up to next separator or i
+    size_t end_pos = i;
+    if (end_pos < this->command_buffer_.size() && this->command_buffer_[end_pos] == SEPARATOR) {
+      // erase only the img:<...> part, keep the separator
+      this->command_buffer_.erase(pos, (end_pos - pos));
+      search_pos = pos; // continue from this position
+    } else {
+      // erase up to i
+      this->command_buffer_.erase(pos, (i - pos));
+      search_pos = pos;
+    }
+  }
   this->send_buffered_command_();
 
-  if (this->screensaver_ != nullptr && page->is_type(page_type::screensaver)) {
+  if (this->screensaver_ != nullptr && (page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) {
+    // Initial sync: ensure some common controls (buttons/text) match HA immediately
+    // Sync Living Room Light (bt0)
+    auto lr_light = this->get_entity_("light.living_room");
+    if (lr_light != nullptr) {
+      this->send_nextion_command_(lr_light->is_state(entity_state::on) ? "bt0.val=1" : "bt0.val=0");
+    }
+    // Sync Kitchen Light (bt1) - Example
+    auto kit_light = this->get_entity_("light.kitchen");
+    if (kit_light != nullptr) {
+      this->send_nextion_command_(kit_light->is_state(entity_state::on) ? "bt1.val=1" : "bt1.val=0");
+    }
+    // Force send of last-known temperature to tMainText if available
+    if (!this->weather_entity_id_.empty()) {
+      auto weather_ent = this->get_entity_(this->weather_entity_id_);
+      if (weather_ent != nullptr && weather_ent->has_attribute(ha_attr_type::temperature)) {
+        std::string temp = weather_ent->get_attribute(ha_attr_type::temperature);
+        std::string temp_with_unit = temp + WeatherItem::temperature_unit;
+        std::string cmd = std::string("tMainText.txt=\"") + temp_with_unit + "\"";
+        this->send_nextion_command_(cmd);
+      }
+    }
     if (this->screensaver_->should_render_status_update()) {
       this->screensaver_->render_status_update(this->command_buffer_);
+      // process img tokens in the status update too
+      size_t search_pos2 = 0;
+      while (true) {
+        auto pos = this->command_buffer_.find("img:", search_pos2);
+        if (pos == std::string::npos) break;
+        size_t i = pos + 4;
+        while (i < this->command_buffer_.size() && isdigit(static_cast<unsigned char>(this->command_buffer_[i]))) i++;
+        std::string idx_str = this->command_buffer_.substr(pos + 4, i - (pos + 4));
+        uint16_t idx = 0;
+        if (!idx_str.empty()) idx = static_cast<uint16_t>(std::stoi(idx_str));
+        std::string comp = "p1";
+        if (i < this->command_buffer_.size() && this->command_buffer_[i] == '@') {
+          size_t j = i + 1;
+          while (j < this->command_buffer_.size() && this->command_buffer_[j] != SEPARATOR) j++;
+          comp = this->command_buffer_.substr(i + 1, j - (i + 1));
+          i = j;
+        }
+        if (idx != 0) {
+          std::string cmd = comp + ".pic=" + std::to_string(idx);
+          this->send_nextion_command_(cmd);
+        }
+        size_t end_pos = i;
+        if (end_pos < this->command_buffer_.size() && this->command_buffer_[end_pos] == SEPARATOR) {
+          this->command_buffer_.erase(pos, (end_pos - pos));
+          search_pos2 = pos;
+        } else {
+          this->command_buffer_.erase(pos, (i - pos));
+          search_pos2 = pos;
+        }
+      }
       this->send_buffered_command_();
     }
   }
@@ -1382,7 +1471,7 @@ void NSPanelLovelace::notify_on_screensaver(
   // todo: could force a switch to screensaver or show the notification if
   //       the user navigates back to screensaver within the timeout period
   auto page = this->page_mgr_.current_page();
-  if (!page || !page->is_type(page_type::screensaver)) return;
+  if (!page || !(page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) return;
   
   this->send_display_command(
     std::string("notify").append(1,SEPARATOR)
@@ -1393,7 +1482,7 @@ void NSPanelLovelace::notify_on_screensaver(
     // hide the notification after a period of time
     this->set_timeout(timeout_ms, [this]() {
       auto page = this->page_mgr_.current_page();
-      if (!page || !page->is_type(page_type::screensaver)) return;
+      if (!page || !(page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) return;
       force_current_page_update_ = true;
       this->render_page_(render_page_option::screensaver_page);
     });
@@ -2358,7 +2447,7 @@ void NSPanelLovelace::on_entity_attribute_update_(std::string entity_id, std::st
     if (!page) return;
 
     if (this->screensaver_ != nullptr && 
-        page->is_type(page_type::screensaver)) {
+        (page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) {
       force_current_page_update_ = 
         this->screensaver_->should_render_status_update(entity_id);
       return;
@@ -2413,19 +2502,23 @@ void NSPanelLovelace::send_weather_update_command_() {
 }
 
 void NSPanelLovelace::on_weather_state_update_(std::string entity_id, std::string state) {
+  // Only send the current weather condition as a Nextion image to p1
   if (this->screensaver_ == nullptr) return;
-  auto item = this->screensaver_->get_item<WeatherItem>(0);
-  if (item == nullptr) return;
-  item->set_icon_by_weather_condition(state);
-  this->send_weather_update_command_();
+  uint16_t img_idx = 0u;
+  if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state) && img_idx != 0u) {
+    std::string cmd = std::string("p1.pic=") + std::to_string(img_idx);
+    this->send_nextion_command_(cmd);
+  }
 }
 
 void NSPanelLovelace::on_weather_temperature_update_(std::string entity_id, std::string temperature) {
+  // Only send the current temperature to the Nextion text field `tMainText`.
   if (this->screensaver_ == nullptr) return;
-  auto item = this->screensaver_->get_item<WeatherItem>(0);
-  if (item == nullptr) return;
-  item->set_value(std::move(temperature));
-  this->send_weather_update_command_();
+  // Compose temperature + unit
+  std::string temp_with_unit = temperature + WeatherItem::temperature_unit;
+  // Build Nextion command: tMainText.txt="..."
+  std::string cmd = std::string("tMainText.txt=\"") + temp_with_unit + "\"";
+  this->send_nextion_command_(cmd);
 }
 
 void NSPanelLovelace::on_weather_temperature_unit_update_(std::string entity_id, std::string temperature_unit) {
@@ -2436,140 +2529,12 @@ void NSPanelLovelace::on_weather_temperature_unit_update_(std::string entity_id,
 }
 
 void NSPanelLovelace::on_weather_forecast_update_(std::string entity_id, std::string forecast_json) {
-  ESP_LOGV(TAG, "Weather forecast update (%u): %zu %s",
-    this->screensaver_ == nullptr, forecast_json.length(), forecast_json.c_str());
-  if (this->screensaver_ == nullptr) return;
-  // todo: check if we are on the screensaver otherwise don't update
-  // todo: implement color updates: "color~background~tTime~timeAMPM~tDate~tMainText~tForecast1~tForecast2~tForecast3~tForecast4~tForecast1Val~tForecast2Val~tForecast3Val~tForecast4Val~bar~tMainTextAlt2~tTimeAdd"
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,7,0)
-  ArduinoJson::JsonDocument filter;
-#else
-  ArduinoJson::StaticJsonDocument<200> filter;
-#endif
-  filter[0]["datetime"] = true;
-  filter[0]["condition"] = true;
-  filter[0]["temperature"] = true;
-
-  if (filter.overflowed()) {
-    ESP_LOGW(TAG, "Weather unparsable: filter overflowed");
-    return;
-  }
-  
-  // Note: Unfortunately the json received is nearly 6KB!
-  //       We filter the variables to consume less but it is still a lot,
-  //       so we need to allocate an appropriate amount of memory to read it.
-#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,7,0)
-  static SpiRamAllocator allocator;
-  JsonDocument doc(&allocator);
-#else
-  BasicJsonDocument<SpiRamAllocator> doc(psram_available() ? 7680 : 6144);
-#endif
-  ArduinoJson::DeserializationError error = ArduinoJson::deserializeJson(
-    doc, forecast_json, DeserializationOption::Filter(filter));
-  App.feed_wdt();
-
-  if (error || doc.overflowed()) {
-    ESP_LOGW(TAG, "Weather unparsable: %s %zu '%s'", error ? error.c_str() : "doc overflow",
-      forecast_json.length(), forecast_json.c_str());
-    return;
-  }
-
-  this->command_buffer_.clear();
-  ArduinoJson::JsonArray docArr = doc.as<ArduinoJson::JsonArray>();
-  ESP_LOGV(TAG, "Weather forecast update s=%u", docArr.size());
-
-  // check if forecast is hourly or daily
-  auto weather_entity_is_hourly = false;
-  if (docArr.size() > 1) {
-    const char * date1 = docArr[0]["datetime"];
-    const char * date2 = docArr[1]["datetime"];
-    tm t{};
-    if (iso8601_to_tm(date1, t)) {
-      uint8_t hr = t.tm_hour;
-      if (iso8601_to_tm(date2, t) && t.tm_hour != hr) {
-        weather_entity_is_hourly = true;
-      }
-    }
-  }
-
-  char buff[16] = {};
-  uint8_t index = 1, item_count = this->screensaver_->get_items().size();
-
-  for (const ArduinoJson::JsonObject &item : docArr) {
-    // can only display the first 4 items (minus 1 for the current weather)
-    if (index >= item_count)
-      break;
-
-    auto weatherItem = this->screensaver_->get_item<WeatherItem>(index);
-    ++index;
-
-    if (weatherItem == nullptr)
-      continue;
-
-    weatherItem->set_icon_by_weather_condition(
-        item["condition"].as<std::string>());
-
-    // icon displayName
-    // todo: import temperature symbol from config
-    tm t{};
-    // Parse date e.g. 2023-08-22T21:00:00+00:00
-    if (!iso8601_to_tm(item["datetime"].as<const char *>(), t)) {
-      ESP_LOGW(TAG, "Weather 'datetime' unparsable: %s", item["datetime"].as<const char *>());
-      // return;
-      t = { 
-        // second, minute, hour
-        0,0,0,
-        // monthday, month, year
-        0,0,100,
-        // weekday, yearday, isdst
-        0,0,0
-      };
-    }
-
-    if (weather_entity_is_hourly) {
-      // ESPTime now; now.strftime(datefmt);
-      strftime(buff, sizeof(buff), this->time_format_.c_str(), &t);
-      weatherItem->set_display_name(buff);
-    } else {
-      switch(t.tm_wday) {
-        case 0:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_sun));
-          break;
-        case 1:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_mon));
-          break;
-        case 2:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_tue));
-          break;
-        case 3:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_wed));
-          break;
-        case 4:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_thu));
-          break;
-        case 5:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_fri));
-          break;
-        case 6:
-          weatherItem->set_display_name(
-            get_translation(translation_item::dow_sat));
-          break;
-        default:
-          weatherItem->set_display_name("DOW_UNK");
-          break;
-      }
-    }
-    
-    snprintf(buff, sizeof(buff), "%.1f", item["temperature"].as<float>());
-    weatherItem->set_value(buff);
-  }
-  this->send_weather_update_command_();
+  ESP_LOGV(TAG, "Weather forecast update received (ignored) %zu", forecast_json.length());
+  // Forecast handling removed — we only display current weather on p1 and current
+  // temperature on tMainText. Ignore the forecast payload.
+  (void)entity_id;
+  (void)forecast_json;
+  return;
 }
 
 } // namespace nspanel_lovelace

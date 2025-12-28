@@ -921,6 +921,27 @@ static constexpr FrozenCharMap<Icon, 15> WEATHER_ICON_MAP {{
   std::pair<const char*, Icon>{weather_type::lightning_rainy, Icon{icon_t::weather_lightning_rainy, 50400u}} // mdi:067E,#c59e00
 }};
 
+// Optional mapping from weather condition -> Nextion image index
+// Set these to the image index values you have uploaded to your Nextion display.
+// Example: sunny -> 26
+static constexpr FrozenCharMap<uint16_t, 15> WEATHER_IMAGE_MAP {{
+  std::pair<const char*, uint16_t>{weather_type::sunny, 27u},
+  std::pair<const char*, uint16_t>{weather_type::windy, 40u},
+  std::pair<const char*, uint16_t>{weather_type::windy_variant, 40u},
+  std::pair<const char*, uint16_t>{weather_type::cloudy, 33u},
+  std::pair<const char*, uint16_t>{weather_type::partlycloudy, 31u},
+  std::pair<const char*, uint16_t>{weather_type::clear_night, 38u},
+  std::pair<const char*, uint16_t>{weather_type::exceptional, 27u},
+  std::pair<const char*, uint16_t>{weather_type::rainy, 35u},
+  std::pair<const char*, uint16_t>{weather_type::pouring, 36u},
+  std::pair<const char*, uint16_t>{weather_type::snowy, 32u},
+  std::pair<const char*, uint16_t>{weather_type::snowy_rainy, 32u},
+  std::pair<const char*, uint16_t>{weather_type::fog, 39u},
+  std::pair<const char*, uint16_t>{weather_type::hail, 36u},
+  std::pair<const char*, uint16_t>{weather_type::lightning, 37u},
+  std::pair<const char*, uint16_t>{weather_type::lightning_rainy, 34u}
+}};
+
 // climate_mapping
 static constexpr FrozenCharMap<const icon_char_t *, 7> CLIMATE_ICON_MAP {{
   std::pair<const char*, const icon_char_t*>{entity_state::auto_, icon_t::calendar_sync},

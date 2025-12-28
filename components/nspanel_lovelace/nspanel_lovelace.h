@@ -136,6 +136,13 @@ public:
       const std::string &message, uint32_t timeout_ms = 0);
 
   void send_display_command(const std::string &command);
+
+  /**
+   * Send a raw Nextion command (e.g., "p1.pic=26") directly to the display.
+   * Moved to public so it can be called from ESPHome YAML lambdas.
+   */
+  void send_nextion_command_(const std::string &command);
+
   /**
    * Softreset the Nextion
    */
@@ -183,7 +190,6 @@ protected:
   void set_reparse_mode_(bool active);
 #endif
 #endif
-  void send_nextion_command_(const std::string &command);
 
   void subscribe_homeassistant_state_attr(
       void (NSPanelLovelace::*callback)(std::string, std::string, std::string),
