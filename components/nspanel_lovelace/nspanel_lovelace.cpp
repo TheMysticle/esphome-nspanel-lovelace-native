@@ -687,101 +687,86 @@ void NSPanelLovelace::render_item_update_(Page *page) {
     ESP_LOGW(TAG, "Render item update: page null");
     return;
   }
+  
+  // 1. Perform standard page render logic
   page->render(this->command_buffer_);
-  // Scan for any img:<index>[@component] tokens and send them as direct Nextion commands
-  // Format supported: img:26 or img:26@p1
+  
+  // Scan for any img:<index>[@component] tokens (Optional/Legacy logic)
   size_t search_pos = 0;
   while (true) {
     auto pos = this->command_buffer_.find("img:", search_pos);
     if (pos == std::string::npos) break;
-    size_t i = pos + 4; // start of digits
-    // parse digits
+    size_t i = pos + 4;
     while (i < this->command_buffer_.size() && isdigit(static_cast<unsigned char>(this->command_buffer_[i]))) i++;
     std::string idx_str = this->command_buffer_.substr(pos + 4, i - (pos + 4));
     uint16_t idx = 0;
     if (!idx_str.empty()) idx = static_cast<uint16_t>(std::stoi(idx_str));
-    std::string comp = "p1"; // default component
+    std::string comp = "p1";
     if (i < this->command_buffer_.size() && this->command_buffer_[i] == '@') {
-      // parse component name until separator '~' or end
       size_t j = i + 1;
       while (j < this->command_buffer_.size() && this->command_buffer_[j] != SEPARATOR) j++;
       comp = this->command_buffer_.substr(i + 1, j - (i + 1));
       i = j;
     }
     if (idx != 0) {
-      // send direct Nextion command, e.g. p1.pic=26
       std::string cmd = comp + ".pic=" + std::to_string(idx);
       this->send_nextion_command_(cmd);
     }
-    // remove the img token (leave separator intact if present)
-    // find end position: up to next separator or i
     size_t end_pos = i;
     if (end_pos < this->command_buffer_.size() && this->command_buffer_[end_pos] == SEPARATOR) {
-      // erase only the img:<...> part, keep the separator
       this->command_buffer_.erase(pos, (end_pos - pos));
-      search_pos = pos; // continue from this position
+      search_pos = pos;
     } else {
-      // erase up to i
       this->command_buffer_.erase(pos, (i - pos));
       search_pos = pos;
     }
   }
   this->send_buffered_command_();
 
+  // 2. Custom Synchronization Block (Protocol-Based)
+  // This runs when the page is a screensaver or screensaver2
   if (this->screensaver_ != nullptr && (page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) {
-    // Initial sync: ensure some common controls (buttons/text) match HA immediately
-    // Sync Living Room Light (bt0)
+    
+    // Sync Living Room Light (bt0) via protocol
     auto lr_light = this->get_entity_("light.living_room");
     if (lr_light != nullptr) {
-      this->send_nextion_command_(lr_light->is_state(entity_state::on) ? "bt0.val=1" : "bt0.val=0");
+      this->send_display_command("bt0Val~" + std::string(lr_light->is_state(entity_state::on) ? "1" : "0"));
     }
-    // Sync Kitchen Light (bt1) - Example
+
+    // Sync Kitchen Light (bt1) via protocol
     auto kit_light = this->get_entity_("light.kitchen");
     if (kit_light != nullptr) {
-      this->send_nextion_command_(kit_light->is_state(entity_state::on) ? "bt1.val=1" : "bt1.val=0");
+      this->send_display_command("bt1Val~" + std::string(kit_light->is_state(entity_state::on) ? "1" : "0"));
     }
-    // Force send of last-known temperature to tMainText if available
+
+    // Force send of weather temperature to tMainText via protocol
     if (!this->weather_entity_id_.empty()) {
       auto weather_ent = this->get_entity_(this->weather_entity_id_);
-      if (weather_ent != nullptr && weather_ent->has_attribute(ha_attr_type::temperature)) {
-        std::string temp = weather_ent->get_attribute(ha_attr_type::temperature);
-        std::string temp_with_unit = temp + WeatherItem::temperature_unit;
-        std::string cmd = std::string("tMainText.txt=\"") + temp_with_unit + "\"";
-        this->send_nextion_command_(cmd);
+      if (weather_ent != nullptr) {
+          // Send Temperature
+          std::string temp = weather_ent->get_attribute(ha_attr_type::temperature);
+          if(!temp.empty()) {
+            this->send_display_command("weatherTemp~" + temp + WeatherItem::temperature_unit);
+          }
+          
+          // Send Weather Icon ID
+          std::string state = weather_ent->get_state();
+          uint16_t img_idx = 0u;
+          if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state) && img_idx != 0u) {
+            this->send_display_command("weatherImg~" + std::to_string(img_idx));
+          }
       }
     }
+
+    // Sync Indoor Temp (if using the indoorTemp instruction in Timer)
+    auto indoor_ent = this->get_entity_("sensor.living_room_indoor_temp");
+    if (indoor_ent != nullptr) {
+      this->send_display_command("indoorTemp~" + indoor_ent->get_state() + "°C");
+    }
+
+    // Standard status update logic (for small status icons)
     if (this->screensaver_->should_render_status_update()) {
       this->screensaver_->render_status_update(this->command_buffer_);
-      // process img tokens in the status update too
-      size_t search_pos2 = 0;
-      while (true) {
-        auto pos = this->command_buffer_.find("img:", search_pos2);
-        if (pos == std::string::npos) break;
-        size_t i = pos + 4;
-        while (i < this->command_buffer_.size() && isdigit(static_cast<unsigned char>(this->command_buffer_[i]))) i++;
-        std::string idx_str = this->command_buffer_.substr(pos + 4, i - (pos + 4));
-        uint16_t idx = 0;
-        if (!idx_str.empty()) idx = static_cast<uint16_t>(std::stoi(idx_str));
-        std::string comp = "p1";
-        if (i < this->command_buffer_.size() && this->command_buffer_[i] == '@') {
-          size_t j = i + 1;
-          while (j < this->command_buffer_.size() && this->command_buffer_[j] != SEPARATOR) j++;
-          comp = this->command_buffer_.substr(i + 1, j - (i + 1));
-          i = j;
-        }
-        if (idx != 0) {
-          std::string cmd = comp + ".pic=" + std::to_string(idx);
-          this->send_nextion_command_(cmd);
-        }
-        size_t end_pos = i;
-        if (end_pos < this->command_buffer_.size() && this->command_buffer_[end_pos] == SEPARATOR) {
-          this->command_buffer_.erase(pos, (end_pos - pos));
-          search_pos2 = pos;
-        } else {
-          this->command_buffer_.erase(pos, (i - pos));
-          search_pos2 = pos;
-        }
-      }
       this->send_buffered_command_();
     }
   }
@@ -2502,23 +2487,19 @@ void NSPanelLovelace::send_weather_update_command_() {
 }
 
 void NSPanelLovelace::on_weather_state_update_(std::string entity_id, std::string state) {
-  // Only send the current weather condition as a Nextion image to p1
   if (this->screensaver_ == nullptr) return;
   uint16_t img_idx = 0u;
   if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state) && img_idx != 0u) {
-    std::string cmd = std::string("p1.pic=") + std::to_string(img_idx);
-    this->send_nextion_command_(cmd);
+    // Let's Use the protocol
+    this->send_display_command("weatherImg~" + std::to_string(img_idx));
   }
 }
 
 void NSPanelLovelace::on_weather_temperature_update_(std::string entity_id, std::string temperature) {
-  // Only send the current temperature to the Nextion text field `tMainText`.
   if (this->screensaver_ == nullptr) return;
-  // Compose temperature + unit
   std::string temp_with_unit = temperature + WeatherItem::temperature_unit;
-  // Build Nextion command: tMainText.txt="..."
-  std::string cmd = std::string("tMainText.txt=\"") + temp_with_unit + "\"";
-  this->send_nextion_command_(cmd);
+  // NEW: Use the protocol
+  this->send_display_command("weatherTemp~" + temp_with_unit);
 }
 
 void NSPanelLovelace::on_weather_temperature_unit_update_(std::string entity_id, std::string temperature_unit) {
