@@ -697,7 +697,7 @@ void NSPanelLovelace::render_item_update_(Page *page) {
   // 1. Perform standard page render logic
   page->render(this->command_buffer_);
   
-  // Scan for any img:<index>[@component] tokens (Optional/Legacy logic)
+  // Process img: tokens (Optional)
   size_t search_pos = 0;
   while (true) {
     auto pos = this->command_buffer_.find("img:", search_pos);
@@ -729,56 +729,56 @@ void NSPanelLovelace::render_item_update_(Page *page) {
   }
   this->send_buffered_command_();
 
-  // 2. Custom Synchronization Block (Protocol-Based)
-  // This runs when the page is a screensaver or screensaver2
+  // 2. Custom Synchronization Block
   if (this->screensaver_ != nullptr && (page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) {
     
+    // --- SYNC WEATHER (MORE ROBUST) ---
+    if (!this->weather_entity_id_.empty()) {
+      auto weather_ent = this->get_entity_(this->weather_entity_id_);
+      if (weather_ent != nullptr) {
+          // Robust Fetch: check attribute 'temperature', if empty, check 'state' (for sensor entities)
+          std::string temp = weather_ent->get_attribute(ha_attr_type::temperature);
+          if (temp.empty() || temp == "unknown") {
+              temp = weather_ent->get_state(); 
+          }
+          
+          if (!temp.empty() && temp != "unknown") {
+            this->send_display_command("weatherTemp~" + temp + WeatherItem::temperature_unit);
+          } else {
+            ESP_LOGD(TAG, "Sync: Weather temp for %s is still empty/unknown", this->weather_entity_id_.c_str());
+          }
+          
+          // Sync Icon
+          std::string weather_state = weather_ent->get_state();
+          uint16_t img_idx = 0u;
+          if (try_get_value(WEATHER_IMAGE_MAP, img_idx, weather_state) && img_idx != 0u) {
+            this->send_display_command("weatherImg~" + std::to_string(img_idx));
+          }
+      } else {
+        ESP_LOGD(TAG, "Sync: Weather entity %s not found in cache!", this->weather_entity_id_.c_str());
+      }
+    }
+
+    // --- SYNC BUTTONS ---
     // bt0: Living Room Light
     auto lr_light = this->get_entity_("light.living_room");
     if (lr_light != nullptr) {
       this->send_display_command("bt0Val~" + std::string(lr_light->is_state(entity_state::on) ? "1" : "0"));
     }
 
-    // bt1: Under Floor Heating (Climate)
-    // We check if the 'hvac_action' is 'heating'
+    // bt1: Under Floor Heating (Check for 'heating' action)
     auto heating = this->get_entity_("climate.living_room_thermostat");
     if (heating != nullptr) {
-      std::string action = heating->get_attribute(ha_attr_type::hvac_action);
-      this->send_display_command("bt1Val~" + std::string(action == "heating" ? "1" : "0"));
+      std::string hvac_act = heating->get_attribute(ha_attr_type::hvac_action);
+      this->send_display_command("bt1Val~" + std::string(hvac_act == "heating" ? "1" : "0"));
     }
 
-    // bt2: Kitchen Light
-    auto kit_light = this->get_entity_("light.kitchen");
+    // bt2: Kitchen Light (Using your new switch ID)
+    auto kit_light = this->get_entity_("switch.wifi_switch_2_switch_2");
     if (kit_light != nullptr) {
       this->send_display_command("bt2Val~" + std::string(kit_light->is_state(entity_state::on) ? "1" : "0"));
     }
 
-    // Force send of weather temperature to tMainText via protocol
-    if (!this->weather_entity_id_.empty()) {
-      auto weather_ent = this->get_entity_(this->weather_entity_id_);
-      if (weather_ent != nullptr) {
-          // Send Temperature
-          std::string temp = weather_ent->get_attribute(ha_attr_type::temperature);
-          if(!temp.empty()) {
-            this->send_display_command("weatherTemp~" + temp + WeatherItem::temperature_unit);
-          }
-          
-          // Send Weather Icon ID
-          std::string state = weather_ent->get_state();
-          uint16_t img_idx = 0u;
-          if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state) && img_idx != 0u) {
-            this->send_display_command("weatherImg~" + std::to_string(img_idx));
-          }
-      }
-    }
-
-    // Sync Indoor Temp (if using the indoorTemp instruction in Timer)
-    auto indoor_ent = this->get_entity_("sensor.living_room_indoor_temp");
-    if (indoor_ent != nullptr) {
-      this->send_display_command("indoorTemp~" + indoor_ent->get_state() + "°C");
-    }
-
-    // Standard status update logic (for small status icons)
     if (this->screensaver_->should_render_status_update()) {
       this->screensaver_->render_status_update(this->command_buffer_);
       this->send_buffered_command_();
