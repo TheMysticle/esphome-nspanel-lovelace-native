@@ -113,6 +113,7 @@ void NSPanelLovelace::setup() {
 #endif
   // todo: create entity for weather instead, so others can subscribe
   if (!this->weather_entity_id_.empty()) {
+    this->create_entity(this->weather_entity_id_); 
     // state provides the information for the icon
     this->subscribe_homeassistant_state(
         &NSPanelLovelace::on_weather_state_update_, this->weather_entity_id_);
