@@ -541,6 +541,12 @@ void NSPanelLovelace::process_command_(const std::string &message) {
   split_str(',', message, tokens);
   if (tokens.size() < 2 || tokens.at(0) != "event") { return; }
 
+  if (tokens.at(1) == "requestUpdate") {
+    ESP_LOGD(TAG, "Nextion requested data refresh (No Reload)");
+    this->render_item_update_(); // This pushes weather/buttons WITHOUT sending pageType
+    return;
+  }
+
   // note: from luibackend/mqtt.py
   if (tokens.at(1) == action_type::buttonPress2) {
     if (tokens.size() == 5) {
