@@ -727,16 +727,24 @@ void NSPanelLovelace::render_item_update_(Page *page) {
   // This runs when the page is a screensaver or screensaver2
   if (this->screensaver_ != nullptr && (page->is_type(page_type::screensaver) || page->is_type(page_type::screensaver2))) {
     
-    // Sync Living Room Light (bt0) via protocol
+    // bt0: Living Room Light
     auto lr_light = this->get_entity_("light.living_room");
     if (lr_light != nullptr) {
       this->send_display_command("bt0Val~" + std::string(lr_light->is_state(entity_state::on) ? "1" : "0"));
     }
 
-    // Sync Kitchen Light (bt1) via protocol
+    // bt1: Under Floor Heating (Climate)
+    // We check if the 'hvac_action' is 'heating'
+    auto heating = this->get_entity_("climate.living_room_thermostat");
+    if (heating != nullptr) {
+      std::string action = heating->get_attribute(ha_attr_type::hvac_action);
+      this->send_display_command("bt1Val~" + std::string(action == "heating" ? "1" : "0"));
+    }
+
+    // bt2: Kitchen Light
     auto kit_light = this->get_entity_("light.kitchen");
     if (kit_light != nullptr) {
-      this->send_display_command("bt1Val~" + std::string(kit_light->is_state(entity_state::on) ? "1" : "0"));
+      this->send_display_command("bt2Val~" + std::string(kit_light->is_state(entity_state::on) ? "1" : "0"));
     }
 
     // Force send of weather temperature to tMainText via protocol
