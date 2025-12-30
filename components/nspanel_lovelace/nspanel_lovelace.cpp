@@ -762,7 +762,7 @@ void NSPanelLovelace::render_item_update_(Page *page) {
 
     // --- SYNC BUTTONS ---
     // bt0: Living Room Light
-    auto lr_light = this->get_entity_("light.living_room");
+    auto lr_light = this->get_entity_("switch.ns_panel_left_relay");
     if (lr_light != nullptr) {
       this->send_display_command("bt0Val~" + std::string(lr_light->is_state(entity_state::on) ? "1" : "0"));
     }
@@ -775,7 +775,7 @@ void NSPanelLovelace::render_item_update_(Page *page) {
     }
 
     // bt2: Kitchen Light (Using your new switch ID)
-    auto kit_light = this->get_entity_("switch.wifi_switch_2_switch_2");
+    auto kit_light = this->get_entity_("switch.ns_panel_right_relay");
     if (kit_light != nullptr) {
       this->send_display_command("bt2Val~" + std::string(kit_light->is_state(entity_state::on) ? "1" : "0"));
     }
