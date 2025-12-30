@@ -1598,8 +1598,10 @@ void NSPanelLovelace::update_datetime(const datetime_mode mode, const char *date
   if ((mode & datetime_mode::date) == datetime_mode::date) {
     std::string datefmt(date_format);
     // todo: fetch from config before using default value
-    if (datefmt.empty())
-      datefmt = this->date_format_;
+    if (datefmt.empty()) {
+      // datefmt = this->date_format_;  // <--- OLD LINE
+      datefmt = "%A, %d %B";            // <--- NEW LINE (Weekday, Day Month)
+    }
     auto timestr = now.strftime(datefmt);
 
     if (this->language_ == "en" || this->language_ == "en-GB") {
