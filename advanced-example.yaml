@@ -9,351 +9,180 @@ esphome:
   name: nspanel
   name_add_mac_suffix: true
   comment: "ESPHome Advanced NSPanel Example"
-  build_path: ./.build/nspanel-advanced
 
 esp32:
   board: esp32dev
   framework:
-    # ESP-IDF is requried so we can access the NSPanel PSRAM
-    # which is on non-standard pins. ESP-IDF also uses less flash than Arduino!
-    # note: Arduino support is deprecated and will be dropped in the future
     type: esp-idf
 
 external_components:
   - source:
       type: git
-      url: https://github.com/olicooper/esphome-nspanel-lovelace-native
+      url: https://github.com/TheMysticle/esphome-nspanel-lovelace-native
       ref: dev
-    refresh: 3h
+    refresh: 1h
     components: [nspanel_lovelace]
 
 nspanel_lovelace:
-  id: nspanel
-  sleep_timeout: 10
-  # locale:
-    ## This can be the ISO 639‑1 language code or a custom json file (i.e. custom.json).
-    ## Currently supported languages:
-    ##   - English/English (GB): en.json, en-GB.json
-    ##   - Czech/Čeština: cs.json
-    ##   - German/Deutsch: de.json
-    ##   - Greek/Νέα Ελληνικά: el.json
-    ##   - Spanish/Español: es.json
-    ##   - Polish/Polski: pl.json
-    ## NOTE: This feature is in beta so the translation keys and values could change at any time!
-    ##       Any custom translation files you create will need to be kept in sync with the the files on the repo
-    ##       https://github.com/olicooper/esphome-nspanel-lovelace-native/tree/dev/components/nspanel_lovelace/translations
-    # language: en
-    # temperature_unit: celcius
+  id: nspanel_comp
   screensaver:
-    # Use this to enable double tapping to exit the screensaver
-    # double_tap_to_unlock: false
+    double_tap_to_unlock: true
     time_id: homeassistant_time
-    ## For formatting options see: https://cplusplus.com/reference/ctime/strftime/
-    # time_format: '%H:%M'
-    # date_format: '%A, %d. %B %Y'
     weather:
-      entity_id: !secret weather_entity_id
-      ## NOTE: use this version (after following the instructions on the README) with Home Assistant v4.4.0+
-      # entity_id: sensor.weather_forecast_daily
-    # status_icon_left:
-    #   entity_id: light.front_room_inner
-    #   icon: hiking
-    # status_icon_right:
-    #   entity_id: light.front_room_outer
-    #   icon:
-    #     value: robot-outline
-    #     color: 200
+      entity_id: weather.openweathermap
+  
   cards:
     - type: cardGrid
-      id: front_room
-      title: Front Room
-      sleep_timeout: 10
-      # hidden: true
+      title: "Home Dashboard"
       entities:
-        - entity_id: light.front_room_all
-          name: All
-        - entity_id: light.front_room_inner
-          name: Inner
-        - entity_id: light.front_room_outer
-          name: Outer
-        - entity_id: scene.front_room_all_default
-          name: Default
-
-    - type: cardGrid
-      sleep_timeout: 10
-      title: House Lights
-      entities:
-        - entity_id: light.hallway
-          name: Hallway
-        - entity_id: light.stairs
-          name: Stairs
-        - entity_id: delete
-        - entity_id: delete
-        - entity_id: switch.garden_lights
-          name: Garden
-
-    - type: cardEntities
-      sleep_timeout: 30
-      title: House Info
-      entities:
-        - entity_id: sensor.outside_temperature
-          name: Outside Temp
-        - entity_id: sensor.nspanel_temperature
-          name: Room Temp
-        - entity_id: navigate.front_room
-          name: Front Room Nav
-
-    - type: cardQR
-      sleep_timeout: 30
-      title: Guest WiFi
-      qr_text: !secret qrcard_text
-      entities:
-        - entity_id: !secret qrcard_ssid_itext
-          name: SSID
-          icon: wifi
-        - entity_id: !secret qrcard_password_itext
-          name: Password
-          icon: key
-
-    - type: cardAlarm
-      sleep_timeout: 60
-      title: Home Alarm
-      alarm_entity_id: alarm_control_panel.home_alarm
+        - entity_id: light.master_bedroom
+          name: "Bedroom"
+        - entity_id: vacuum.robot_cleaner
+          name: "Vacuum"
+        - entity_id: script.movie_mode
+          name: "Movie Mode"
+          icon: "movie"
 
     - type: cardThermo
-      sleep_timeout: 60
-      title: Thermo Ecobee
-      thermo_entity_id: climate.ecobee
-      # temperature_unit: fahrenheit
+      title: "Climate Control"
+      thermo_entity_id: climate.main_thermostat
 
-logger:
-  baud_rate: 115200
+    - type: cardQR
+      title: "Guest WiFi"
+      qr_text: "WIFI:S:MyNetwork;P:MyPassword;;"
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-api:
-  services:
-    ## Service to update the TFT firmware using a URL that is accessible to the nspanel
-    - service: upload_tft
-      variables:
-        url: string
+# --- HEATING SYNC (Tracks hvac_action attribute) ---
+text_sensor:
+  - platform: homeassistant
+    entity_id: climate.main_thermostat
+    attribute: hvac_action
+    on_value:
       then:
-        - lambda: 'id(nspanel).upload_tft(url);'
-    ## Service to display a notification on the screensaver
-    - service: notify_on_screensaver
-      variables:
-        heading: string
-        message: string
-        ## Set to 0 (or remove) to keep message until screensaver refreshes
-        timeout_ms: int
+        - lambda: 'id(nspanel_comp).send_display_command(x == "heating" ? "bt1Val~1" : "bt1Val~0");'
+
+# --- LIGHT & RELAY SYNC ---
+binary_sensor:
+  - platform: homeassistant
+    entity_id: switch.nspanel_relay_1
+    id: lr_sync
+    on_state:
       then:
-        - lambda: 'id(nspanel).notify_on_screensaver(heading, message, timeout_ms);'
-        - rtttl.play: 'scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b'
-    ## Service to send a command directly to the display (useful for testing)
-    # - service: send_command
-    #   variables:
-    #     cmd: string
-    #   then:
-    #     - lambda: 'id(nspanel).send_display_command(cmd);'
+        - lambda: 'id(nspanel_comp).send_display_command(id(lr_sync).state ? "bt0Val~1" : "bt0Val~0");'
 
-ota:
-  platform: esphome
-  password: !secret ota_password
+  - platform: homeassistant
+    entity_id: switch.nspanel_relay_2
+    id: kit_sync
+    on_state:
+      then:
+        - lambda: 'id(nspanel_comp).send_display_command(id(kit_sync).state ? "bt2Val~1" : "bt2Val~0");'
+        
+  # Physical Button Multi-Click logic
+  - platform: gpio
+    pin: {number: 14, inverted: true}
+    on_multi_click:
+      - timing: # Short Click: Toggle Relay
+          - state: true
+            max_length: 350ms
+        then:
+          - switch.toggle: relay_1
+      - timing: # Long Press: Toggle AC
+          - state: true
+            min_length: 1500ms
+        then:
+          - homeassistant.service:
+              service: homeassistant.toggle
+              data: {entity_id: climate.ac_unit}
 
-## UART for the Nextion display
+# --- INDOOR TEMP SYNC ---
+sensor:
+  - platform: homeassistant
+    entity_id: sensor.room_temperature # Your HA temperature sensor
+    on_value:
+      then:
+        - lambda: |-
+            char buf[16];
+            sprintf(buf, "%.1f°C", x); 
+            id(nspanel_comp).send_display_command("indoorTemp~" + std::string(buf));
+
+  # Hardware NTC Sensor logic
+  - platform: adc
+    id: ntc_source
+    pin: 38
+    update_interval: 60s
+    attenuation: 11db
+  - platform: resistance
+    id: resistance_sensor
+    sensor: ntc_source
+    configuration: DOWNSTREAM
+    resistor: 11.2kOhm
+  - platform: ntc
+    id: internal_temp
+    sensor: resistance_sensor
+    calibration:
+      b_constant: 3950
+      reference_temperature: 25°C
+      reference_resistance: 10kOhm
+    name: "Internal Case Temperature"
+
+# --- BRIGHTNESS CONTROL SLIDERS ---
+number:
+  - platform: template
+    name: "Active Brightness"
+    min_value: 10
+    max_value: 100
+    initial_value: 100
+    on_value:
+      then:
+        - lambda: 'id(nspanel_comp).set_display_active_dim(x);'
+  - platform: template
+    name: "Screensaver Brightness"
+    min_value: 0
+    max_value: 50
+    initial_value: 20
+    on_value:
+      then:
+        - lambda: 'id(nspanel_comp).set_display_inactive_dim(x);'
+
 uart:
   id: uart_nextion
   tx_pin: 16
   rx_pin: 17
   baud_rate: 115200
 
+logger:
+  baud_rate: 0 
+
 time:
   - platform: homeassistant
     id: homeassistant_time
-    timezone: Europe/London
-    on_time:
-      ## At midnight
-      - seconds: 0
-        minutes: 0
-        hours: 0
-        then:
-          - lambda: 'id(nspanel).set_display_dim(1, 50);'
-      ## At 8:00 PM
-      - seconds: 0
-        minutes: 0
-        hours: 20
-        then:
-          - lambda: 'id(nspanel).set_display_dim(20, 80);'
-      ## At 7:00 AM
-      - seconds: 0
-        minutes: 0
-        hours: 7
-        then:
-          - lambda: 'id(nspanel).set_display_dim(50, 100);'
 
 switch:
-  ## Physical relay 1
   - platform: gpio
-    name: Relay 1
+    name: "Left Relay"
     id: relay_1
-    pin:
-      number: 19
-    restore_mode: ALWAYS_ON
-  ## Physical relay 2
+    pin: 19
   - platform: gpio
-    name: Relay 2
+    name: "Right Relay"
     id: relay_2
-    pin:
-      number: 22
+    pin: 22
+  - platform: gpio
+    name: "Screen Power"
+    pin: {number: 4, inverted: true}
     restore_mode: ALWAYS_ON
-  ## Turn screen power on/off
-  - platform: gpio
-    name: Screen Power
-    id: screen_power
-    entity_category: config
-    pin:
-      number: 4
-      inverted: true
-    restore_mode: ALWAYS_ON
-
-sensor:
-  ## WiFi signal strength sensor
-  - platform: wifi_signal
-    name: WiFi Signal
-    update_interval: 300s
-  ## Internal temperature sensor, adc value
-  - platform: adc
-    id: ntc_source
-    pin: 38
-    update_interval: 60s
-    attenuation: 12db
-  ## Internal temperature sensor, adc reading converted to resistance (calculation)
-  - platform: resistance
-    id: resistance_sensor
-    sensor: ntc_source
-    configuration: DOWNSTREAM
-    resistor: 11.2kOhm
-  ## Internal temperature sensor, resistance to temperature (calculation)
-  - platform: ntc
-    id: temperature
-    sensor: resistance_sensor
-    calibration:
-      b_constant: 3950
-      reference_temperature: 25°C
-      reference_resistance: 10kOhm
-    name: Temperature
-
-binary_sensor:
-  ## Left button below the display
-  - platform: gpio
-    name: Left Button
-    pin:
-      number: GPIO14
-      inverted: true
-    id: left_button
-    internal: true
-    on_multi_click:
-      ####### Single click - toggle front_room_inner
-      - timing:
-          - ON for at most 1s
-          - OFF for at least 0.4s
-        then:
-          - if:
-              condition:
-                  api.connected:
-              then:
-                - if:
-                    condition:
-                      switch.is_off: relay_1
-                    then:
-                      - switch.turn_on: relay_1
-                    else:
-                      - homeassistant.service:
-                          service: light.toggle
-                          data:
-                            entity_id: light.front_room_inner
-              else:
-                - switch.toggle: relay_1
-        ####### Triple click - restart the ESP32
-      - timing:
-          - ON for at most 1s
-          - OFF for at most 0.3s
-          - ON for at most 1s
-          - OFF for at most 0.3s
-          - ON for at most 1s
-          - OFF for at least 0.3s
-        then:
-          - button.press: restart_switch
-      ####### Single long click - toggle light relay 1
-      - timing:
-          - ON for 1.2s to 4s
-          - OFF for at least 0.3s
-        then:
-          - switch.toggle: relay_1
-
-  ## Right button below the display
-  - platform: gpio
-    name: Right Button
-    pin:
-      number: GPIO27
-      inverted: true
-    id: right_button
-    internal: true
-    on_multi_click:
-    ####### Single click - toggle light front_room_outer
-      - timing:
-          - ON for at most 1s
-          - OFF for at least 0.4s
-        then:
-          - if:
-              condition:
-                  api.connected:
-              then:
-                - if:
-                    condition:
-                      switch.is_off: relay_2
-                    then:
-                      - switch.turn_on: relay_2
-                    else:
-                      - homeassistant.service:
-                          service: light.toggle
-                          data:
-                            entity_id: light.front_room_outer
-              else:
-                - switch.toggle: relay_2
-      ####### Triple click - restart TFT
-      - timing:
-          - ON for at most 1s
-          - OFF for at most 0.3s
-          - ON for at most 1s
-          - OFF for at most 0.3s
-          - ON for at most 1s
-          - OFF for at least 0.3s
-        then:
-          - switch.turn_off: screen_power
-          - delay: 0.5s
-          - switch.turn_on: screen_power
-      ####### Single long click - toggle light relay 2
-      - timing:
-          - ON for 1.2s to 4s
-          - OFF for at least 0.4s
-        then:
-          - switch.toggle: relay_2
-
-button:
-  - platform: restart
-    id: restart_switch
-    name: Restart
 
 output:
-  ## Buzzer for playing tones
   - platform: ledc
     id: buzzer_out
     pin: 21
 
-## Rtttl function for buzzer
 rtttl:
   id: buzzer
   output: buzzer_out
+
+api:
+  services:
+    - service: upload_tft
+      variables:
+        url: string
+      then:
+        - lambda: 'id(nspanel_comp).upload_tft(url);'
