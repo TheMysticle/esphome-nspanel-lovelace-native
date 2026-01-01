@@ -1,99 +1,114 @@
-# ESPHome Native Component for NSPanel (beta)
+# ESPHome Native Component for NSPanel (TheMysticle Fork)
+
+This is a **fork** of the excellent [olicooper/esphome-nspanel-lovelace-native](https://github.com/olicooper/esphome-nspanel-lovelace-native) project.
 
 This project is designed to utilise the UI provided by [NSPanel Lovelace UI](https://github.com/joBr99/nspanel-lovelace-ui), but use a native [ESPHome](https://github.com/esphome/esphome) component for the backend. My core goals for the project were to:
-- Reduce bandwidth consumption - by utilising the efficient TCP communication implemented by ESPHome.
-- Remove the need for an MQTT broker and make the device able to function on a minimal level during network outages.
-- Make the screen more responsive by having the ESP32 do some of the heavy lifting (the ESP32 is actually quite powerful!)
+- **Reduce bandwidth consumption** - by utilising the efficient TCP communication implemented by ESPHome.
+- **Remove the need for an MQTT broker** and make the device able to function on a minimal level during network outages.
+- **Make the screen more responsive** by having the ESP32 do some of the heavy lifting (the ESP32 is actually quite powerful!)
+
+While this fork maintains all of the original core card logic (Grid, Entities, Thermo, Media, etc.) developed by Oli Cooper, it introduces a complete **visual and functional overhaul of the Screensaver/Main Dashboard**.
+
+### Key Modifications & Enhancements:
+- **Image-Based Weather:** Replaced low-resolution font characters with high-quality Nextion Picture components (`p1.pic`).
+- **Direct Protocol Sync:** Implemented a binary protocol to push temperature and button states directly to the screen. This bypasses the overhead of standard Lovelace parsing for the most common dashboard elements.
+- **Synced Dashboard Buttons:** The screensaver features three dedicated toggle buttons (`bt0`, `bt1`, `bt2`) that stay in perfect sync with Home Assistant Relays, Lights, and Heating status (`hvac_action`).
+- **Persistent Data:** Added a `requestUpdate` handler. When you wake the screen or navigate back to the screensaver, the Nextion "pulls" the current data from the ESP32, ensuring weather and button states are visible instantly without waiting for a state change.
 
 A special thanks goes to these great projects for making this possible:
 - [NSPanel Lovelace UI](https://github.com/joBr99/nspanel-lovelace-ui)
 - [ESPHome NSPanel Lovelace UI](https://github.com/sairon/esphome-nspanel-lovelace-ui)
 - [ESPHome](https://github.com/esphome/esphome)
 
-# Installation
+---
 
-The installation of ESPHome on the ESP32 follows the standard ESPHome build method e.g. `esphome run --device COM6 basic-example.yaml`. It is possible to do OTA updates with the ESPHome CLI after the initial upload.
+## 📸 UI Gallery
 
-For the GUI, this project relies on the HMI TFT firmware from the [ESPHome NSPanel Lovelace UI](https://github.com/sairon/esphome-nspanel-lovelace-ui) project. 
-The firmware version reported by the screen needs to be `52` or `53` for it to be compatible with this project.
-If you don't have the custom HMI TFT firmware installed already you will need to upload the appropriate `nspanel*.tft` file from `v4.3.3` of the project which can be [found here](https://github.com/joBr99/nspanel-lovelace-ui/tree/v4.3.3/HMI). You can upload the correct TFT firmware after installing this component on the ESP32 by using the `upload_tft` service (seen in the [basic example](basic-example.yaml#L60)) exposed by the device in HomeAssistant.
+| Custom Screensaver | Grid Card (Original Logic) | Climate Card |
+| :---: | :---: | :---: |
+| ![Screensaver Dashboard](https://github.com/TheMysticle/esphome-nspanel-lovelace-native/blob/dev/images/screensaver.png?raw=true) | ![Grid Card](https://github.com/TheMysticle/esphome-nspanel-lovelace-native/blob/dev/images/card%20page.png?raw=true) | ![Climate Page](https://github.com/TheMysticle/esphome-nspanel-lovelace-native/blob/dev/images/climate.png?raw=true) |
 
-# Configuration
+---
 
-A basic configuration can be found in the [basic example](basic-example.yaml), but you'll probably also want to look at the [advanced example](advanced-example.yaml) which shows the features currently available. This is loosely based on the appdaemon configuration format ([found here](https://github.com/joBr99/nspanel-lovelace-ui/blob/v4.3.3/appdaemon/apps-simple.yaml)) to make it easier to transition to this native ESPHome solution, but please don't expect this to translate exactly as it is not possible to make it work in the exact same way given the limitations of the ESP32.
+## 🛠 Installation & HMI Update
 
-### Icons
+The installation of ESPHome on the ESP32 follows the standard ESPHome build method e.g. `esphome run --device COM6 ns-panel.yaml`. It is possible to do OTA updates with the ESPHome CLI after the initial upload.
 
-- Icon values can be an icon name or hex value (e.g. `hex:E549`). A list of icons can be found here: https://docs.nspanel.pky.eu/icon-cheatsheet.html
-- Icon colours need to be a 16-bit number (0-65535) representing a `rgb565` colour code. This website can be used to select your colour https://chrishewett.com/blog/true-rgb565-colour-picker/ - then you take the rgb565 hex value and convert it to a number (e.g. `#ce79` -> `52857`).
-
-
-# Help Needed!
-
-As much as I love embedded programming, I am unable to dedicate the time required to make this project great without the help of others.
-This is a **beta project** which is not fully functional yet and is subject to change without notice. It has taken a lot of time and effort to get the project to this point and it will take a lot more time to get the project past beta.
-
-There are many UI components missing and the [python build script](components/nspanel_lovelace/__init__.py) is in dire need of refactoring (I butchered it together to get it working but PRs to the ESPHome repo are required to provide more flexibility over code generation).
-
-Currently the following features work:
-- Screensaver with time, date, weather and status icon display
-- Support for `cardGrid`, `cardGrid2`, `cardEntities`, `cardQR`, `cardAlarm`, `cardThermo`, `cardMedia`
-- Most entity types should display on cards. Lights, switches, sensors and scenes have been tested to work, with additional support for the `popupLight` and `popupTimer` pages.
-
-There is currently no support for these cards: `cardPower`. `cardUnlock`, `cardChart` - but these are planned for the future.
-Please see the [HMI readme](https://github.com/joBr99/nspanel-lovelace-ui/tree/main/HMI) for more info on the cards mentioned above.
-
-PRs to expand the functionality or fix bugs are very welcome!
-
-# Known Issues
-
-### 1. Weather forecast is not displayed on the screensaver when using Home Assistant 2024.4 or later
-
-This issue is due to the `forecast` attribute being removed from weather entities. There is currently no alternative way to fetch this data with the current ESPHome functionality but I hope to get this fixed (see [this feature request](https://github.com/esphome/feature-requests/issues/2703)).
-More info on the issue can be [found here](https://github.com/olicooper/esphome-nspanel-lovelace-native/issues/8).
-
-As a workaround, please add the following to your Home Assistant configuration (changing `weather.home` to your actual weather entity_id) then update the `weather` `entity_id` in your esphome config to the `unique_id` seen below (i.e. `sensor.weather_forecast_daily`).
+### 1. ESPHome Configuration
+To use this backend, point your ESPHome YAML to this repository:
 
 ```yaml
-template:
-  - trigger:
-      - platform: time_pattern
-        minutes: /30
-      - platform: homeassistant
-        event: start
-      - platform: event
-        event_type: event_template_reloaded
-    action:
-      - service: weather.get_forecasts
-        data:
-          type: daily
-        target:
-          entity_id: weather.home # change to your weather entity
-        response_variable: data
-    sensor:
-      - name: Weather Forecast Daily
-        unique_id: weather_forecast_daily # Use this id in your esphome config (screensaver -> weather -> entity_id)
-        state: "{{ states('weather.home') }}" # change to your weather entity
-        attributes:
-          temperature: "{{ state_attr('weather.home', 'temperature') }}" # change to your weather entity
-          temperature_unit: "{{ state_attr('weather.home', 'temperature_unit') }}" # change to your weather entity
-          # change 'weather.home' below to your weather entity
-          forecast: >
-            {%- with ns = namespace(arr=[],obj={}) -%}
-            {%- for n in data['weather.home'].forecast[:5] -%}
-              {%- for k, v in n | items -%}
-                {%- if k == "datetime" -%}
-                  {%- set ns.obj = dict(ns.obj | items, **{k: as_datetime(v, "0" | as_datetime) | as_local | as_timestamp | timestamp_custom('%Y-%m-%dT%H:%M:%S')}) -%}
-                {%- elif k == "condition" or k == "temperature" -%}
-                  {%- set ns.obj = dict(ns.obj | items, **{k: v}) -%}
-                {%- endif -%}
-              {%- endfor -%}
-              {%- if (ns.obj.items() | length) == 3 and ns.obj.datetime -%}
-                {%- set ns.arr = ns.arr + [ns.obj] -%}
-              {%- endif -%}
-            {%- endfor %}{{ns.arr}}{% endwith -%}
+external_components:
+  - source:
+      type: git
+      url: https://github.com/TheMysticle/esphome-nspanel-lovelace-native
+      ref: main
+    refresh: 1h
+    components: [nspanel_lovelace]
 ```
 
-# License
+### 2. Update the Display (TFT/HMI)
+This project **requires** the modified HMI firmware provided in this repo to display the overhauled screensaver. The files are located in the `/HMI` folder.
+- **TFT File:** Upload the `.tft` file to your panel using the `upload_tft` service exposed by the device in Home Assistant.
+- **HMI File:** Use the `.hmi` source file in the Nextion Editor if you wish to further customize the layout or icons.
 
-Code in this repository is licensed under the GPLv3 license. Third-party code used in this project have their own license terms. Please see [the license document](LICENSE) for more information.
+The firmware version reported by the screen needs to be `52` or `53` for it to be compatible with this project.
+
+---
+
+## ⚙️ Configuration & Backend Setup
+
+A basic configuration can be found in the `basic-example.yaml`, but you'll probably also want to look at the `advanced-example.yaml`.
+
+### Adding Entities to C++ Setup
+To ensure your dashboard buttons and weather update correctly, you must tell the ESP32 to track those specific entities. Open `components/nspanel_lovelace/nspanel_lovelace.cpp` and update the `setup()` function:
+
+```cpp
+void NSPanelLovelace::setup() {
+  // Track these specifically for the Screensaver Dashboard sync
+  this->create_entity("switch.ns_panel_left_relay");
+  this->create_entity("switch.ns_panel_right_relay");
+  this->create_entity("climate.living_room_thermostat");
+  
+  // Standard subscriptions...
+}
+```
+
+### YAML Sync Triggers
+Add triggers to your ESPHome YAML to keep the Nextion UI updated in real-time when states change in Home Assistant:
+
+```yaml
+binary_sensor:
+  - platform: homeassistant
+    entity_id: switch.ns_panel_left_relay
+    id: relay_sync
+    on_state:
+      then:
+        - lambda: 'id(nspanel_comp).send_display_command(id(relay_sync).state ? "bt0Val~1" : "bt0Val~0");'
+```
+
+### Icons & Colours
+
+- **Icons:** Icon values can be an icon name or hex value (e.g. `hex:E549`). A list of icons can be found here: https://docs.nspanel.pky.eu/icon-cheatsheet.html
+- **Colours:** Colours need to be a 16-bit number (0-65535) representing an `rgb565` colour code. You can use [this tool](https://chrishewett.com/blog/true-rgb565-colour-picker/) to select your colour.
+
+---
+
+## 🎨 Customizing the HMI
+
+The dashboard is designed to be easily modifiable via the **Nextion Editor**:
+
+1.  **Modify Labels:** Click the text boxes above the buttons (e.g., `tLR`, `tHeating`) and change the `txt` attribute to name your controls.
+2.  **Swap Icons:** Select `bt0`, `bt1`, or `bt2` and change the `pic0` (Off) and `pic1` (On) attributes to use different images from the picture library.
+3.  **Read-Only Mode:** To make a button display a state (like Heating active) without allowing manual toggles, add `tsw bt1,0` to the **Postinitialize** event of the screensaver page.
+4.  **Weather Images:** The mapping between HA conditions and image IDs is located in `types.h`. You can replace the images in the Nextion library; simply ensure the ID numbers match your C++ code.
+
+---
+
+## Credits & License
+
+This project is a fork based on the work of:
+- [olicooper](https://github.com/olicooper/esphome-nspanel-lovelace-native) - Original native ESPHome backend logic.
+- [joBr99](https://github.com/joBr99/nspanel-lovelace-ui) - Original Lovelace UI concepts.
+
+Code in this repository is licensed under the GPLv3 license. Third-party code used in this project have their own license terms.
