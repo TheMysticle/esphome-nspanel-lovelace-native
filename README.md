@@ -34,6 +34,10 @@ A special thanks goes to these great projects for making this possible:
 
 The installation of ESPHome on the ESP32 follows the standard ESPHome build method e.g. `esphome run --device COM6 ns-panel.yaml`. It is possible to do OTA updates with the ESPHome CLI after the initial upload.
 
+## PSRAM
+
+The NSPanel has on-board PSRAM which this project makes use of automatically, which means that the `psram` component is unavailable because the PSRAM is configured during code generation by adding specific `sdkconfig_options`. Additionally, when using Arduino (which is deprecated) the PSRAM cannot be used as it is not possible to customise the PSRAM pins for the Arduino framework build.
+
 ### 1. ESPHome Configuration
 To use this backend, point your ESPHome YAML to this repository:
 
