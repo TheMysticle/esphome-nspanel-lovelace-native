@@ -128,13 +128,13 @@ void NSPanelLovelace::setup() {
     // state provides the information for the icon
     this->subscribe_homeassistant_state(
         &NSPanelLovelace::on_weather_state_update_, this->weather_entity_id_);
-    this->subscribe_homeassistant_state_attr(
+    this->subscribe_homeassistant_state(
         &NSPanelLovelace::on_weather_temperature_update_,
         this->weather_entity_id_, to_string(ha_attr_type::temperature));
-    this->subscribe_homeassistant_state_attr(
+    this->subscribe_homeassistant_state(
         &NSPanelLovelace::on_weather_temperature_unit_update_,
         this->weather_entity_id_, to_string(ha_attr_type::temperature_unit));
-    this->subscribe_homeassistant_state_attr(
+    this->subscribe_homeassistant_state(
         &NSPanelLovelace::on_weather_forecast_update_, this->weather_entity_id_,
         to_string(ha_attr_type::forecast));
   }
@@ -2374,46 +2374,87 @@ void NSPanelLovelace::call_ha_service_(
     const std::string &service,
     const std::map<std::string, std::string> &data,
     const std::map<std::string, std::string> &data_template) {
+  #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,10,0)
+    api::HomeassistantActionRequest resp;
+  #else
+    api::HomeassistantServiceResponse resp;
+  #endif
+  #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
+    resp.set_service(esphome::StringRef(service));
+  #else
+    resp.service = service;
+  #endif
+
+  #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+    auto it = data.find(to_string(ha_attr_type::entity_id));
+    if (it == data.end())
+      ESP_LOGD(TAG, "Call HA: %s -> %s", service.c_str(), it->second.c_str());
+    else
+      ESP_LOGD(TAG, "Call HA: %s", service.c_str());
+  #endif
   
-  api::HomeassistantActionRequest resp;
-  resp.service = service.c_str();
-
-  for (auto const& it : data) {
-    auto &kv = resp.data.emplace_back();
-    kv.key = it.first.c_str();
-    kv.value = it.second.c_str();
+  #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+    resp.data.init(data.size());
+  #endif
+  for (auto &it : data) {
+    api::HomeassistantServiceMap kv;
+    #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
+      kv.set_key(esphome::StringRef(it.first));
+    #else
+      kv.key = it.first;
+    #endif
+    kv.value = it.second;
+    resp.data.push_back(kv);
   }
 
-  for (auto const& it : data_template) {
-    auto &kv = resp.data_template.emplace_back();
-    kv.key = it.first.c_str();
-    kv.value = it.second.c_str();
+  #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,11,0)
+    resp.data_template.init(data_template.size());
+  #endif
+  for (auto &it : data_template) {
+    api::HomeassistantServiceMap kv;
+    #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
+      kv.set_key(esphome::StringRef(it.first));
+    #else
+      kv.key = it.first;
+    #endif
+    kv.value = it.second;
+    resp.data_template.push_back(kv);
   }
 
-  api::global_api_server->send_homeassistant_action(resp);
+  #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,10,0)
+    api::global_api_server->send_homeassistant_action(resp);
+  #else
+    api::global_api_server->send_homeassistant_service_call(resp);
+  #endif
 }
 
-void NSPanelLovelace::on_entity_state_update_(std::string entity_id, esphome::StringRef state) {
+void NSPanelLovelace::on_entity_state_update_(std::string entity_id, std::string state) {
   this->on_entity_attribute_update_(entity_id, to_string(ha_attr_type::state), state);
 }
-
-void NSPanelLovelace::on_entity_attribute_update_(std::string entity_id, std::string attr, esphome::StringRef attr_value) {
+void NSPanelLovelace::on_entity_attribute_update_(std::string entity_id, std::string attr, std::string attr_value) {
   auto entity = this->get_entity_(entity_id);
   if (entity == nullptr) return;
   auto ha_attr = to_ha_attr(attr);
   if (ha_attr == ha_attr_type::unknown) return;
 
-  // Convert StringRef to string for storage
-  std::string value_str = attr_value.str();
-
   if (ha_attr == ha_attr_type::state) {
-    entity->set_state(value_str);
+    entity->set_state(attr_value);
   } else {
-    entity->set_attribute(ha_attr, value_str);
+    entity->set_attribute(ha_attr, attr_value);
   }
 
-  // Use the overload without the string "entity_id" to fix deprecation
-  this->set_timeout(200, [this, entity_id] () {
+  ESP_LOGD(TAG, "HA update: %s %s='%s'",
+    entity_id.c_str(), attr.c_str(), 
+    ha_attr == ha_attr_type::state
+      ? entity->get_state().c_str()
+      : entity->get_attribute(ha_attr).c_str());
+
+  // if (this->force_current_page_update_) return;
+
+  // If there are lots of entity attributes that update within a short time
+  // then this will queue lots of commands unnecessarily.
+  // This re-schedules updates every time one happens within a 200ms period.
+  this->set_timeout(entity_id, 200, [this, entity_id] () {
     if (this->force_current_page_update_) return;
     auto page = this->page_mgr_.current_page();
     if (!page) return;
@@ -2425,13 +2466,43 @@ void NSPanelLovelace::on_entity_attribute_update_(std::string entity_id, std::st
       return;
     }
 
+    // re-render only if the entity is on the currently active card
+    // todo: this doesnt account for popup pages
     for (auto &item : page->get_items()) {
       auto stateful_item = page_item_cast<StatefulPageItem>(item.get());
-      if (stateful_item != nullptr && stateful_item->get_entity_id() == entity_id) {
+      if (stateful_item == nullptr) continue;
+      
+      if (stateful_item->get_entity_id() == entity_id) {
         force_current_page_update_ = true;
         return;
       }
     }
+
+    auto entity_type = get_entity_type(entity_id);
+    // Thermo cards don't have items to check, only a single thermo entity
+    // render updates when climate entitites are updated
+    if (entity_type == entity_type::climate &&
+        page->is_type(page_type::cardThermo)) {
+      force_current_page_update_ = true;
+      return;
+    }
+    else if (entity_type == entity_type::media_player &&
+        page->is_type(page_type::cardMedia)) {
+      force_current_page_update_ = true;
+      return;
+    }
+    else if (entity_type == entity_type::alarm_control_panel &&
+        page->is_type(page_type::cardAlarm)) {
+      force_current_page_update_ = true;
+      return;
+    }
+    
+    // todo: implement popup page checks too
+    // if (this->popup_page_current_uuid_ == item->get_uuid()) {
+    //   this->render_popup_page_update_(item);
+    // } else if (this->popup_page_current_uuid_.empty()) {
+    //   this->render_item_update_(page);
+    // }
   });
 }
 
@@ -2443,28 +2514,36 @@ void NSPanelLovelace::send_weather_update_command_() {
   this->send_buffered_command_();
 }
 
-void NSPanelLovelace::on_weather_state_update_(std::string entity_id, esphome::StringRef state) {
+void NSPanelLovelace::on_weather_state_update_(std::string entity_id, std::string state) {
   if (this->screensaver_ == nullptr) return;
   uint16_t img_idx = 0u;
-  if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state.str()) && img_idx != 0u) {
+  if (try_get_value(WEATHER_IMAGE_MAP, img_idx, state) && img_idx != 0u) {
+    // Let's Use the protocol
     this->send_display_command("weatherImg~" + std::to_string(img_idx));
   }
 }
 
-void NSPanelLovelace::on_weather_temperature_update_(std::string entity_id, esphome::StringRef temperature) {
+void NSPanelLovelace::on_weather_temperature_update_(std::string entity_id, std::string temperature) {
   if (this->screensaver_ == nullptr) return;
-  this->send_display_command("weatherTemp~" + temperature.str() + WeatherItem::temperature_unit);
+  std::string temp_with_unit = temperature + WeatherItem::temperature_unit;
+  // NEW: Use the protocol
+  this->send_display_command("weatherTemp~" + temp_with_unit);
 }
 
-void NSPanelLovelace::on_weather_temperature_unit_update_(std::string entity_id, esphome::StringRef temperature_unit) {
+void NSPanelLovelace::on_weather_temperature_unit_update_(std::string entity_id, std::string temperature_unit) {
   if (this->screensaver_ == nullptr) return;
-  WeatherItem::temperature_unit = temperature_unit.str();
+  WeatherItem::temperature_unit = std::move(temperature_unit);
   this->screensaver_->set_items_render_invalid();
   this->send_weather_update_command_();
 }
 
-void NSPanelLovelace::on_weather_forecast_update_(std::string entity_id, esphome::StringRef forecast_json) {
-  // Ignored as per original logic
+void NSPanelLovelace::on_weather_forecast_update_(std::string entity_id, std::string forecast_json) {
+  ESP_LOGV(TAG, "Weather forecast update received (ignored) %zu", forecast_json.length());
+  // Forecast handling removed — we only display current weather on p1 and current
+  // temperature on tMainText. Ignore the forecast payload.
+  (void)entity_id;
+  (void)forecast_json;
+  return;
 }
 
 } // namespace nspanel_lovelace

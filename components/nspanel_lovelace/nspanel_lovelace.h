@@ -14,7 +14,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/string_ref.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/api/custom_api_device.h"
 
@@ -148,6 +147,7 @@ public:
    * Softreset the Nextion
    */
   void soft_reset_display() {
+    // this->send_nextion_command_("rest"); // only for stock FW
 #ifdef USE_ESP_IDF
     gpio_set_level(GPIO_NUM_4, 1);
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -171,6 +171,10 @@ public:
 #endif
 
 #ifdef USE_NSPANEL_TFT_UPLOAD
+  /**
+   * Upload the tft file and softreset the Nextion.
+   * If the upload fails for any reason, a power cycle of the display and re-upload will be needed
+   */
   bool upload_tft(const std::string &url);
 #endif
 
@@ -188,13 +192,11 @@ protected:
 #endif
 
   void subscribe_homeassistant_state_attr(
-      void (NSPanelLovelace::*callback)(const std::string&, const std::string&, esphome::StringRef),
-      const std::string &entity_id, const std::string &attribute) {
-    api::global_api_server->subscribe_home_assistant_state(
-        entity_id, optional<std::string>(attribute),
-        [this, callback, entity_id, attribute](esphome::StringRef state) {
-          (this->*callback)(entity_id, attribute, state);
-        });
+      void (NSPanelLovelace::*callback)(std::string, std::string, std::string),
+      std::string entity_id, std::string attribute) {
+    auto f = std::bind(callback, this, entity_id, attribute, std::placeholders::_1);
+    api::global_api_server->
+      subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }
 
   bool process_data_();
@@ -229,6 +231,7 @@ protected:
 
 #ifdef USE_TIME
   void setup_time_();
+  // Check and update clock if required
   void check_time_();
   optional<time::RealTimeClock *> time_id_{};
   std::string date_format_ = "%A, %d. %B %Y";
@@ -254,15 +257,14 @@ protected:
     const std::string& service,
     const std::map<std::string, std::string> &data,
     const std::map<std::string, std::string> &data_template = {});
-  void on_entity_state_update_(const std::string& entity_id, esphome::StringRef state);
+  void on_entity_state_update_(std::string entity_id, std::string state);
   void on_entity_attribute_update_(
-    const std::string& entity_id, const std::string& attr_name, esphome::StringRef attr_value);
+    std::string entity_id, std::string attr_name, std::string attr_value);
 
-  void on_weather_state_update_(const std::string& entity_id, esphome::StringRef state);
-  void on_weather_temperature_update_(const std::string& entity_id, esphome::StringRef temperature);
-  void on_weather_temperature_unit_update_(const std::string& entity_id, esphome::StringRef temperature_unit);
-  void on_weather_forecast_update_(const std::string& entity_id, esphome::StringRef forecast_json);
-  
+  void on_weather_state_update_(std::string entity_id, std::string state);
+  void on_weather_temperature_update_(std::string entity_id, std::string temperature);
+  void on_weather_temperature_unit_update_(std::string entity_id, std::string temperature_unit);
+  void on_weather_forecast_update_(std::string entity_id, std::string forecast_json);
   void send_weather_update_command_();
   std::string weather_entity_id_;
   std::string language_;
