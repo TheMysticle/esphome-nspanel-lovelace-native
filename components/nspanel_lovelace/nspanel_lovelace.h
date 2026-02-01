@@ -194,7 +194,10 @@ protected:
   void subscribe_homeassistant_state_attr(
       void (NSPanelLovelace::*callback)(std::string, std::string, std::string),
       std::string entity_id, std::string attribute) {
-    auto f = std::bind(callback, this, entity_id, attribute, std::placeholders::_1);
+    // Use explicit lambda with StringRef to resolve overload ambiguity
+    std::function<void(esphome::StringRef)> f = [this, callback, entity_id, attribute](esphome::StringRef state) {
+      (this->*callback)(entity_id, attribute, std::string(state.data(), state.size()));
+    };
     api::global_api_server->
       subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
   }

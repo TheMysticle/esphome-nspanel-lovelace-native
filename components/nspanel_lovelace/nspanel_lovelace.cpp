@@ -2380,7 +2380,7 @@ void NSPanelLovelace::call_ha_service_(
     api::HomeassistantServiceResponse resp;
   #endif
   #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
-    resp.set_service(esphome::StringRef(service));
+    resp.service = esphome::StringRef(service);
   #else
     resp.service = service;
   #endif
@@ -2399,11 +2399,12 @@ void NSPanelLovelace::call_ha_service_(
   for (auto &it : data) {
     api::HomeassistantServiceMap kv;
     #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
-      kv.set_key(esphome::StringRef(it.first));
+      kv.key = esphome::StringRef(it.first);
+      kv.value = esphome::StringRef(it.second);
     #else
       kv.key = it.first;
+      kv.value = it.second;
     #endif
-    kv.value = it.second;
     resp.data.push_back(kv);
   }
 
@@ -2413,11 +2414,12 @@ void NSPanelLovelace::call_ha_service_(
   for (auto &it : data_template) {
     api::HomeassistantServiceMap kv;
     #if ESPHOME_VERSION_CODE >= VERSION_CODE(2025,8,0)
-      kv.set_key(esphome::StringRef(it.first));
+      kv.key = esphome::StringRef(it.first);
+      kv.value = esphome::StringRef(it.second);
     #else
       kv.key = it.first;
+      kv.value = it.second;
     #endif
-    kv.value = it.second;
     resp.data_template.push_back(kv);
   }
 
@@ -2454,7 +2456,9 @@ void NSPanelLovelace::on_entity_attribute_update_(std::string entity_id, std::st
   // If there are lots of entity attributes that update within a short time
   // then this will queue lots of commands unnecessarily.
   // This re-schedules updates every time one happens within a 200ms period.
-  this->set_timeout(entity_id, 200, [this, entity_id] () {
+  // Use hash of entity_id to create unique timeout identifier
+  uint32_t timeout_id = fnv1_hash(entity_id);
+  this->set_timeout(timeout_id, 200, [this, entity_id] () {
     if (this->force_current_page_update_) return;
     auto page = this->page_mgr_.current_page();
     if (!page) return;
