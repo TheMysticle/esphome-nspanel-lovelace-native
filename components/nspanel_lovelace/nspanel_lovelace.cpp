@@ -118,25 +118,43 @@ void NSPanelLovelace::setup() {
     this->create_entity("switch.ns_panel_right_relay");
     this->create_entity("climate.living_room_thermostat");
 
-    this->subscribe_homeassistant_state(
-      &NSPanelLovelace::on_entity_state_update_, "climate.living_room_thermostat");
+    // Use lambda wrapper to convert StringRef to std::string for legacy callbacks
+    api::global_api_server->subscribe_home_assistant_state(
+      "climate.living_room_thermostat", 
+      optional<std::string>(),
+      [this](esphome::StringRef state) {
+        this->on_entity_state_update_("climate.living_room_thermostat", std::string(state.c_str()));
+      });
 
     this->subscribe_homeassistant_state_attr(
         &NSPanelLovelace::on_entity_attribute_update_, 
         "climate.living_room_thermostat", "hvac_action");
     
     // state provides the information for the icon
-    this->subscribe_homeassistant_state(
-        &NSPanelLovelace::on_weather_state_update_, this->weather_entity_id_);
-    this->subscribe_homeassistant_state(
-        &NSPanelLovelace::on_weather_temperature_update_,
-        this->weather_entity_id_, to_string(ha_attr_type::temperature));
-    this->subscribe_homeassistant_state(
-        &NSPanelLovelace::on_weather_temperature_unit_update_,
-        this->weather_entity_id_, to_string(ha_attr_type::temperature_unit));
-    this->subscribe_homeassistant_state(
-        &NSPanelLovelace::on_weather_forecast_update_, this->weather_entity_id_,
-        to_string(ha_attr_type::forecast));
+    api::global_api_server->subscribe_home_assistant_state(
+        this->weather_entity_id_, 
+        optional<std::string>(),
+        [this, weather_id = this->weather_entity_id_](esphome::StringRef state) {
+          this->on_weather_state_update_(weather_id, std::string(state.c_str()));
+        });
+    api::global_api_server->subscribe_home_assistant_state(
+        this->weather_entity_id_, 
+        optional<std::string>(to_string(ha_attr_type::temperature)),
+        [this, weather_id = this->weather_entity_id_](esphome::StringRef temperature) {
+          this->on_weather_temperature_update_(weather_id, std::string(temperature.c_str()));
+        });
+    api::global_api_server->subscribe_home_assistant_state(
+        this->weather_entity_id_, 
+        optional<std::string>(to_string(ha_attr_type::temperature_unit)),
+        [this, weather_id = this->weather_entity_id_](esphome::StringRef temp_unit) {
+          this->on_weather_temperature_unit_update_(weather_id, std::string(temp_unit.c_str()));
+        });
+    api::global_api_server->subscribe_home_assistant_state(
+        this->weather_entity_id_, 
+        optional<std::string>(to_string(ha_attr_type::forecast)),
+        [this, weather_id = this->weather_entity_id_](esphome::StringRef forecast) {
+          this->on_weather_forecast_update_(weather_id, std::string(forecast.c_str()));
+        });
   }
   
   for (auto &entity : this->entities_) {
@@ -337,9 +355,12 @@ void NSPanelLovelace::setup() {
     }
 
     if (add_state_subscription) {
-      this->subscribe_homeassistant_state(
-        &NSPanelLovelace::on_entity_state_update_,
-        entity_id);
+      api::global_api_server->subscribe_home_assistant_state(
+        entity_id,
+        optional<std::string>(),
+        [this, entity_id](esphome::StringRef state) {
+          this->on_entity_state_update_(entity_id, std::string(state.c_str()));
+        });
     }
   }
 

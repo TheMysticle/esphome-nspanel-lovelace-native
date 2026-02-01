@@ -196,7 +196,7 @@ protected:
       std::string entity_id, std::string attribute) {
     // Use explicit lambda with StringRef to resolve overload ambiguity
     std::function<void(esphome::StringRef)> f = [this, callback, entity_id, attribute](esphome::StringRef state) {
-      (this->*callback)(entity_id, attribute, std::string(state.data(), state.size()));
+      (this->*callback)(entity_id, attribute, std::string(state.c_str()));
     };
     api::global_api_server->
       subscribe_home_assistant_state(entity_id, optional<std::string>(attribute), f);
