@@ -123,7 +123,7 @@ void NSPanelLovelace::setup() {
       "climate.living_room_thermostat", 
       optional<std::string>(),
       [this](esphome::StringRef state) {
-        this->on_entity_state_update_("climate.living_room_thermostat", std::string(state.c_str()));
+        this->on_entity_state_update_("climate.living_room_thermostat", state);
       });
 
     this->subscribe_homeassistant_state_attr(
@@ -135,25 +135,25 @@ void NSPanelLovelace::setup() {
         this->weather_entity_id_, 
         optional<std::string>(),
         [this, weather_id = this->weather_entity_id_](esphome::StringRef state) {
-          this->on_weather_state_update_(weather_id, std::string(state.c_str()));
+          this->on_weather_state_update_(weather_id, state);
         });
     api::global_api_server->subscribe_home_assistant_state(
         this->weather_entity_id_, 
         optional<std::string>(to_string(ha_attr_type::temperature)),
         [this, weather_id = this->weather_entity_id_](esphome::StringRef temperature) {
-          this->on_weather_temperature_update_(weather_id, std::string(temperature.c_str()));
+          this->on_weather_temperature_update_(weather_id, temperature);
         });
     api::global_api_server->subscribe_home_assistant_state(
         this->weather_entity_id_, 
         optional<std::string>(to_string(ha_attr_type::temperature_unit)),
         [this, weather_id = this->weather_entity_id_](esphome::StringRef temp_unit) {
-          this->on_weather_temperature_unit_update_(weather_id, std::string(temp_unit.c_str()));
+          this->on_weather_temperature_unit_update_(weather_id, temp_unit);
         });
     api::global_api_server->subscribe_home_assistant_state(
         this->weather_entity_id_, 
         optional<std::string>(to_string(ha_attr_type::forecast)),
         [this, weather_id = this->weather_entity_id_](esphome::StringRef forecast) {
-          this->on_weather_forecast_update_(weather_id, std::string(forecast.c_str()));
+          this->on_weather_forecast_update_(weather_id, forecast);
         });
   }
   
@@ -359,7 +359,7 @@ void NSPanelLovelace::setup() {
         entity_id,
         optional<std::string>(),
         [this, entity_id](esphome::StringRef state) {
-          this->on_entity_state_update_(entity_id, std::string(state.c_str()));
+          this->on_entity_state_update_(entity_id, state);
         });
     }
   }
