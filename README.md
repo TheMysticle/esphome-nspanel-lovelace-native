@@ -51,6 +51,72 @@ external_components:
     components: [nspanel_lovelace]
 ```
 
+### 1.1 Weather Forecast Method (Home Assistant 2024.4+)
+
+Home Assistant removed the `forecast` attribute from weather entities, so the old template-sensor path is now considered deprecated.
+
+Use the service-based method in your ESPHome config:
+
+```yaml
+nspanel_lovelace:
+  screensaver:
+    weather:
+      entity_id: weather.home
+      forecast_method: service
+```
+
+Then add a Home Assistant automation to fetch and push forecast data:
+
+```yaml
+alias: NSPanel Lovelace Weather Forecast Sync
+description: >-
+  Fetch weather forecast and push the next items to NSPanel.
+triggers:
+  - minutes: /30
+    trigger: time_pattern
+  - entity_id: weather.home
+    trigger: state
+  # Optional: send forecast after panel comes online
+  - trigger: state
+    entity_id:
+      - switch.ns_panel_screen_power
+    for:
+      seconds: 2
+    to:
+      - "on"
+conditions: []
+actions:
+  - target:
+      entity_id: weather.home
+    data:
+      type: hourly
+    response_variable: forecast_data
+    action: weather.get_forecasts
+  - variables:
+      forecast: >-
+        {% set forecast = (forecast_data.values() | first).forecast %}
+        {% set ns = namespace(items=[]) %}
+        {% for item in forecast if as_timestamp(item.datetime) >= as_timestamp(now()) %}
+          {% if (ns.items | length) < 5 %}
+            {% set ns.items = ns.items + [{
+              "datetime": item.datetime | as_datetime | as_timestamp | timestamp_custom('%Y-%m-%dT%H:%M:%S'),
+              "condition": item.condition,
+              "temperature": item.temperature | float(1)
+            }] %}
+          {% endif %}
+        {% endfor %}
+        {{- ns.items }}
+  - action: esphome.ns_panel_set_weather_forecast_data
+    data:
+      forecast: "{{ forecast }}"
+mode: single
+```
+
+Notes:
+- The action name uses your ESPHome node name. For `esphome.name: ns-panel`, the action is typically `esphome.ns_panel_set_weather_forecast_data`.
+- If your screen power entity has a different id/name, update it in the optional trigger.
+- In this fork, current weather and custom icons remain controlled by our custom display logic, so enabling `forecast_method: service` does not break icon behavior.
+
 ### 2. Update the Display (TFT/HMI)
 This project **requires** the modified HMI firmware provided in this repo to display the overhauled screensaver. The files are located in the `/HMI` folder.
 - **TFT File:** Upload the `.tft` file to your panel using the `upload_tft` service exposed by the device in Home Assistant.

@@ -22,6 +22,7 @@ nspanel_lovelace:
     time_id: homeassistant_time
     weather:
       entity_id: weather.home_weather # Change to your weather entity
+      forecast_method: service
   cards:
     - type: cardGrid
       title: "Main Controls"

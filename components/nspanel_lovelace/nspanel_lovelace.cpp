@@ -149,14 +149,21 @@ void NSPanelLovelace::setup() {
         [this, weather_id = this->weather_entity_id_](esphome::StringRef temp_unit) {
           this->on_weather_temperature_unit_update_(weather_id, temp_unit);
         });
+
+    #ifndef USE_NSPANEL_WEATHER_SERVICE
     api::global_api_server->subscribe_home_assistant_state(
         this->weather_entity_id_, 
         optional<std::string>(to_string(ha_attr_type::forecast)),
         [this, weather_id = this->weather_entity_id_](esphome::StringRef forecast) {
           this->on_weather_forecast_update_(weather_id, forecast);
         });
+    #endif
   }
-  
+
+  #ifdef USE_NSPANEL_WEATHER_SERVICE
+    this->register_service(&NSPanelLovelace::set_weather_forecast_data, "set_weather_forecast_data", {"forecast"});
+  #endif
+
   for (auto &entity : this->entities_) {
     auto &entity_id = entity->get_entity_id();
     ESP_LOGV(TAG, "Adding subscriptions for entity '%s'", entity_id.c_str());
@@ -2618,6 +2625,19 @@ void NSPanelLovelace::on_weather_temperature_unit_update_(
   this->screensaver_->set_items_render_invalid();
   this->send_weather_update_command_();
 }
+
+#ifdef USE_NSPANEL_WEATHER_SERVICE
+void NSPanelLovelace::set_weather_forecast_data(std::string forecast_json) {
+  this->on_weather_forecast_update_(this->weather_entity_id_,
+# if ESPHOME_VERSION_CODE >= VERSION_CODE(2026,2,0)
+    esphome::StringRef(forecast_json)
+# else
+    forecast_json
+# endif
+  );
+}
+#endif
+
 
 void NSPanelLovelace::on_weather_forecast_update_(
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026,1,0)

@@ -30,7 +30,7 @@ nspanel_lovelace:
     time_id: homeassistant_time
     weather:
       entity_id: weather.openweathermap
-  
+      forecast_method: service
   cards:
     - type: cardGrid
       title: "Home Dashboard"
@@ -167,6 +167,7 @@ switch:
     pin: 22
   - platform: gpio
     name: "Screen Power"
+    id: screen_power
     pin: {number: 4, inverted: true}
     restore_mode: ALWAYS_ON
 
