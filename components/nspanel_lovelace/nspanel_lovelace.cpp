@@ -2180,6 +2180,14 @@ void NSPanelLovelace::process_button_press_(
         {to_string(ha_attr_type::entity_id), entity_id},
         {to_string(ha_attr_type::temperature), val}
       }});
+    // Optimistically update local entity state so any re-render triggered by
+    // the HA attribute echo-back (within the 200ms debounce window) reads the
+    // new value instead of the stale one, preventing the display from snapping
+    // back to the previous temperature before HA confirms the change.
+    auto opt_entity = this->get_entity_(entity_id);
+    if (opt_entity != nullptr) {
+      opt_entity->set_attribute(ha_attr_type::temperature, val);
+    }
   } else if (button_type == button_type::tempUpdHighLow) {
     std::vector<std::string> temp_values;
     split_str('|', value, temp_values);
@@ -2195,6 +2203,12 @@ void NSPanelLovelace::process_button_press_(
         {to_string(ha_attr_type::target_temp_high), temp_high},
         {to_string(ha_attr_type::target_temp_low), temp_low}
       }});
+    // Optimistically update local entity state for the same reason as above.
+    auto opt_entity = this->get_entity_(entity_id);
+    if (opt_entity != nullptr) {
+      opt_entity->set_attribute(ha_attr_type::target_temp_high, temp_high);
+      opt_entity->set_attribute(ha_attr_type::target_temp_low, temp_low);
+    }
   } else if (button_type == button_type::hvacAction) {
     this->call_ha_service_(
       entity_type, 
