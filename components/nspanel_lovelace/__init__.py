@@ -670,10 +670,10 @@ async def to_code(config):
         # cg.add_define("USE_NSPANEL_TFT_UPLOAD")
         # core.CORE.add_define("USE_NSPANEL_TFT_UPLOAD")
         cg.add_build_flag("-DUSE_NSPANEL_TFT_UPLOAD")
-        if core.CORE.using_arduino:
+        if getattr(core.CORE, "using_arduino", False):
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
-        elif core.CORE.using_esp_idf:
+        elif core.CORE.is_esp32:
             ## todo: Remove this condition by esphome version 2026.6.x
             if hasattr(esp32, "include_builtin_idf_component"):
                 esp32.include_builtin_idf_component("esp_http_client")
