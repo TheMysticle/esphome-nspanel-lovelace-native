@@ -620,7 +620,7 @@ async def to_code(config):
     if is_test_mode:
         _LOGGER.info(f"[nspanel_lovelace] TEST DEVICE MODE ACTIVE, PSRAM DISABLED")
     # NSPanel has non-standard PSRAM pins which are not modifiable when building for Arduino
-    elif core.CORE.using_esp_idf:
+    elif core.CORE.is_esp32:
         cg.add_define("USE_PSRAM")
         esp32.add_idf_sdkconfig_option(
             f"CONFIG_{esp32.get_esp32_variant().upper()}_SPIRAM_SUPPORT", True
