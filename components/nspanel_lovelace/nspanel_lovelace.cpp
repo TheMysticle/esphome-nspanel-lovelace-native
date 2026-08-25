@@ -615,6 +615,14 @@ void NSPanelLovelace::process_command_(const std::string &message) {
     }
     // restore dimmode state
     this->set_display_dim();
+    
+    // tell display whether to use new sliders popup
+    if (this->use_new_sliders_) {
+      this->send_nextion_command_("featNewSliders=1");
+    } else {
+      this->send_nextion_command_("featNewSliders=0");
+    }
+
     this->force_current_page_update_ = true;
     this->render_page_(render_page_option::screensaver_page);
 #ifdef USE_TIME

@@ -49,6 +49,7 @@ nspanel_lovelace:
   locale:
     temperature_unit: celcius
     language: en
+  use_new_sliders: true
   sleep_timeout: 10
   default_card: extras_2_card
   screensaver:
