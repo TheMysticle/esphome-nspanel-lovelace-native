@@ -494,7 +494,11 @@ void NSPanelLovelace::set_display_dim(uint8_t inactive, uint8_t active) {
     // brightness when active (when buttons pressed)
     .append(esphome::to_string(this->display_active_dim_)).append(1, SEPARATOR)
     // background colour when active (not screensaver background, defaults to ha-dark)
-    .append(esphome::to_string(6371));
+    .append(esphome::to_string(6371)).append(1, SEPARATOR)
+    // font color (empty to use default)
+    .append(1, SEPARATOR)
+    // feature flag popup (use_new_sliders)
+    .append(this->use_new_sliders_ ? "1" : "0");
   
   this->send_buffered_command_();
 }
@@ -615,6 +619,8 @@ void NSPanelLovelace::process_command_(const std::string &message) {
     }
     // restore dimmode state
     this->set_display_dim();
+    // tell display whether to use new sliders popup (now handled in set_display_dim)
+
     this->force_current_page_update_ = true;
     this->render_page_(render_page_option::screensaver_page);
 #ifdef USE_TIME

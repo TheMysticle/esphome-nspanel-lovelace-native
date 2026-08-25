@@ -132,6 +132,9 @@ public:
   bool get_double_tap_to_unlock() const { return this->double_tap_to_unlock_; }
   void set_double_tap_to_unlock(bool value) { this->double_tap_to_unlock_ = value; }
   
+  bool get_use_new_sliders() const { return this->use_new_sliders_; }
+  void set_use_new_sliders(bool value) { this->use_new_sliders_ = value; }
+
   void render_screensaver_page() { this->render_page_(render_page_option::screensaver_page); }
   void render_next_page() { this->render_page_(render_page_option::next); }
   void render_previous_page() { this->render_page_(render_page_option::prev); }
@@ -251,6 +254,7 @@ protected:
 #endif
   
   bool double_tap_to_unlock_ = false;
+  bool use_new_sliders_ = false;
 
   uint8_t display_active_dim_ = 100;
   uint8_t display_inactive_dim_ = 50;
