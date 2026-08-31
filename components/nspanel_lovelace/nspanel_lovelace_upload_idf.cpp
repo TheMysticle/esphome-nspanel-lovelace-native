@@ -187,25 +187,17 @@ int NSPanelLovelace::upload_by_chunks_(esp_http_client_handle_t http_client, uin
         for (int j = 0; j < 4; ++j) {
           result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
         }
-        if (result > 0) {
-          ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
-          this->content_length_ = this->tft_size_ - result;
-          range_start = result;
-          
-          // Because the TFT requested a new upload start point, close the HTTP connection
-          // and start a new HTTP request with the updated Range header.
-          esp_http_client_close(http_client);
-          char range_header[32];
-          sprintf(range_header, "bytes=%" PRIu32 "-%zu", range_start, this->tft_size_);
-          ESP_LOGD(TAG, "Requesting range: %s", range_header);
-          esp_http_client_set_header(http_client, "Range", range_header);
-        } else {
-          range_start = range_end + 1;
-        }
+        ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
+        this->content_length_ = this->tft_size_ - result;
+        range_start = result;
+        
+        // Because the TFT requested a new upload start point, close the HTTP connection
+        esp_http_client_close(http_client);
+        
         // Deallocate buffer
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
-        return range_end + 1;
+        return range_start;
       } else if (recv_string[0] != 0x05 && recv_string[0] != 0x08) {  // 0x05 == "ok"
         ESP_LOGE(TAG, "Invalid response from Nextion: [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
