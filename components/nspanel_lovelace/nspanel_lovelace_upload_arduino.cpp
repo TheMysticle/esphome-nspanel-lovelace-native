@@ -105,7 +105,32 @@ int NSPanelLovelace::upload_by_chunks_(HTTPClient *http, const std::string &url,
     }
 
     this->recv_ret_string_(recv_string, 5000, true);
-    if (recv_string[0] != 0x05) { // 0x05 == "ok"
+
+    if (!recv_string.empty() && recv_string[0] == 0x08 && recv_string.size() < 5) {
+      const uint32_t deadline = millis() + 5000;
+      while (recv_string.size() < 5 && millis() < deadline) {
+        if (this->available()) {
+          uint8_t b = 0;
+          if (this->read_byte(&b)) {
+            recv_string.push_back(static_cast<char>(b));
+          }
+        } else {
+          delay(5);  // NOLINT
+          App.feed_wdt();
+        }
+      }
+      if (recv_string.size() < 5) {
+        ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within 5000ms", recv_string.size());
+        return -1;
+      }
+    }
+
+    if (recv_string.empty()) {
+      ESP_LOGE(TAG, "No response from display after 5000ms");
+      return -1;
+    }
+
+    if (recv_string[0] != 0x05 && recv_string[0] != 0x08) { // 0x05 == "ok"
       ESP_LOGD(TAG, "recv_string [%s]",
                format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
     }

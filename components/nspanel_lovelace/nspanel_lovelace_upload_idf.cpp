@@ -103,7 +103,7 @@ int NSPanelLovelace::upload_by_chunks_(esp_http_client_handle_t http_client, uin
     int partial_read_len = 0;
     uint8_t retries = 0;
     // Attempt to read the chunk with retries.
-    while (retries < 5 && read_len < buffer_size) {
+    while (retries < 250 && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
@@ -132,7 +132,29 @@ int NSPanelLovelace::upload_by_chunks_(esp_http_client_handle_t http_client, uin
     if (read_len > 0) {
       this->write_array(buffer, buffer_size);
       App.feed_wdt();
-      this->recv_ret_string_(recv_string, this->upload_first_chunk_sent_ ? 500 : 5000, true);
+      this->recv_ret_string_(recv_string, 5000, true);
+
+      if (!recv_string.empty() && recv_string[0] == 0x08 && recv_string.size() < 5) {
+        const uint32_t deadline = millis() + 5000;
+        while (recv_string.size() < 5 && millis() < deadline) {
+          if (this->available()) {
+            uint8_t b = 0;
+            if (this->read_byte(&b)) {
+              recv_string.push_back(static_cast<char>(b));
+            }
+          } else {
+            vTaskDelay(pdMS_TO_TICKS(5));  // NOLINT
+            App.feed_wdt();
+          }
+        }
+        if (recv_string.size() < 5) {
+          ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within 5000ms", recv_string.size());
+          allocator.deallocate(buffer, 4096);
+          buffer = nullptr;
+          return -1;
+        }
+      }
+
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
 #ifdef USE_PSRAM
@@ -150,6 +172,14 @@ int NSPanelLovelace::upload_by_chunks_(esp_http_client_handle_t http_client, uin
           heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
 #endif
       this->upload_first_chunk_sent_ = true;
+
+      if (recv_string.empty()) {
+        ESP_LOGE(TAG, "No response from display after 5000ms");
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return -1;
+      }
+
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         ESP_LOGD(TAG, "recv_string [%s]",
                  format_hex_pretty(reinterpret_cast<const uint8_t *>(recv_string.data()), recv_string.size()).c_str());
