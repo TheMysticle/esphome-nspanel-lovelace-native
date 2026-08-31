@@ -187,9 +187,13 @@ int NSPanelLovelace::upload_by_chunks_(esp_http_client_handle_t http_client, uin
         for (int j = 0; j < 4; ++j) {
           result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
         }
-        ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
-        this->content_length_ = this->tft_size_ - result;
-        range_start = result;
+        if (result > 0) {
+          ESP_LOGI(TAG, "Nextion reported new range %" PRIu32, result);
+          this->content_length_ = this->tft_size_ - result;
+          range_start = result;
+        } else {
+          range_start = range_end + 1;
+        }
         
         // Because the TFT requested a new upload start point, close the HTTP connection
         esp_http_client_close(http_client);

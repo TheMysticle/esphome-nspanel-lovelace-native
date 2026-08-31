@@ -141,7 +141,7 @@ int NSPanelLovelace::upload_by_chunks_(HTTPClient *http, const std::string &url,
       for (int j = 0; j < 4; ++j) {
         result += static_cast<uint8_t>(recv_string[j + 1]) << (8 * j);
       }
-      if (result >= 0) {
+      if (result > 0) {
         ESP_LOGD(TAG, "Nextion reported new range %d", result);
         this->content_length_ = this->tft_size_ - result;
         return result;
