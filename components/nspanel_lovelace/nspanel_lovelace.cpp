@@ -840,6 +840,15 @@ void NSPanelLovelace::render_item_update_(Page *page) {
         }
 
         if (!temp.empty() && temp != "unknown") {
+          try {
+            float temp_f = std::stof(temp);
+            char temp_buf[16];
+            snprintf(temp_buf, sizeof(temp_buf), "%.1f", temp_f);
+            temp = temp_buf;
+          } catch (const std::exception& e) {
+            // Keep original string if parsing fails
+          }
+
           // fixed icon (image slot 42) + temperature value; the HMI shows/hides
           // tIndoor & p2 based on whether this command is sent at all
           this->send_display_command(
