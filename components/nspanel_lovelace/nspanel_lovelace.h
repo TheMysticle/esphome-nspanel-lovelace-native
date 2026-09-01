@@ -128,6 +128,7 @@ public:
   void set_weather_forecast_data(std::string forecast_json);
 #endif
   void set_weather_entity_id(const std::string &weather_entity_id) { this->weather_entity_id_ = weather_entity_id; }
+  void set_indoor_temperature_entity_id(const std::string &entity_id) { this->indoor_temperature_entity_id_ = entity_id; }
 
   bool get_double_tap_to_unlock() const { return this->double_tap_to_unlock_; }
   void set_double_tap_to_unlock(bool value) { this->double_tap_to_unlock_ = value; }
@@ -292,6 +293,7 @@ protected:
 #endif
   void send_weather_update_command_();
   std::string weather_entity_id_;
+  std::string indoor_temperature_entity_id_;
   std::string language_;
 
   std::queue<std::string> command_queue_;

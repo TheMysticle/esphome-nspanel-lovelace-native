@@ -829,6 +829,29 @@ void NSPanelLovelace::render_item_update_(Page *page) {
       }
     }
 
+    // --- SYNC INDOOR TEMPERATURE ---
+    if (!this->indoor_temperature_entity_id_.empty()) {
+      auto indoor_ent = this->get_entity_(this->indoor_temperature_entity_id_);
+      if (indoor_ent != nullptr) {
+        // Robust Fetch: check attribute 'temperature', if empty, check 'state' (for sensor entities)
+        std::string temp = indoor_ent->get_attribute(ha_attr_type::temperature);
+        if (temp.empty() || temp == "unknown") {
+          temp = indoor_ent->get_state();
+        }
+
+        if (!temp.empty() && temp != "unknown") {
+          // fixed icon (image slot 42) + temperature value; the HMI shows/hides
+          // tIndoor & p2 based on whether this command is sent at all
+          this->send_display_command(
+            "indoorTemp~" + temp + WeatherItem::temperature_unit + "~42");
+        } else {
+          ESP_LOGD(TAG, "Sync: Indoor temp for %s is still empty/unknown", this->indoor_temperature_entity_id_.c_str());
+        }
+      } else {
+        ESP_LOGD(TAG, "Sync: Indoor temp entity %s not found in cache!", this->indoor_temperature_entity_id_.c_str());
+      }
+    }
+
     // --- SYNC BUTTONS ---
     // bt0: Living Room Light
     auto lr_light = this->get_entity_("switch.ns_panel_left_relay");

@@ -138,6 +138,7 @@ CONF_SCREENSAVER_STATUS_ICON_RIGHT = "status_icon_right"
 CONF_SCREENSAVER_STATUS_ICON_ALT_FONT = "alt_font" # todo: to_code
 CONF_SCREENSAVER_DOUBLE_TAP_TO_UNLOCK = "double_tap_to_unlock"
 CONF_SCREENSAVER_FORECAST_METHOD = "forecast_method"
+CONF_SCREENSAVER_INDOOR_TEMPERATURE = "indoor_temperature"
 
 CONF_CARDS = "cards"
 CONF_CARD_TYPE = "type"
@@ -345,6 +346,9 @@ SCHEMA_SCREENSAVER = cv.Schema({
         cv.Required(CONF_ENTITY_ID): valid_entity_id(),
         cv.Optional(CONF_SCREENSAVER_FORECAST_METHOD, default="template_sensor"): cv.one_of("template_sensor", "service"),
     }),
+    cv.Optional(CONF_SCREENSAVER_INDOOR_TEMPERATURE): cv.Schema({
+        cv.Required(CONF_ENTITY_ID): valid_entity_id(['sensor', 'climate']),
+    }),
     cv.Optional(CONF_SCREENSAVER_STATUS_ICON_LEFT): SCHEMA_STATUS_ICON,
     cv.Optional(CONF_SCREENSAVER_STATUS_ICON_RIGHT): SCHEMA_STATUS_ICON,
 })
@@ -447,6 +451,9 @@ def validate_config(config):
             add_entity_id(left.get(CONF_ENTITY_ID))
         if right and CONF_ENTITY_ID in right:
             add_entity_id(right.get(CONF_ENTITY_ID))
+        indoor_temp = screensaver_config.get(CONF_SCREENSAVER_INDOOR_TEMPERATURE, None)
+        if indoor_temp and CONF_ENTITY_ID in indoor_temp:
+            add_entity_id(indoor_temp.get(CONF_ENTITY_ID))
 
     return config
 
@@ -800,6 +807,11 @@ async def to_code(config):
                         "forecast_method 'template_sensor' is deprecated and will be removed in esphome 2026.6. "
                         "Please use forecast_method 'service' instead (see the README for the required HA automation template)."
                     )
+
+        if CONF_SCREENSAVER_INDOOR_TEMPERATURE in screensaver_config:
+            indoor_temp_config = screensaver_config[CONF_SCREENSAVER_INDOOR_TEMPERATURE]
+            if CONF_ENTITY_ID in indoor_temp_config:
+                cg.add(nspanel.set_indoor_temperature_entity_id(indoor_temp_config[CONF_ENTITY_ID]))
             screensaver_items = []
             # 1 main weather item + 4 forecast items
             for i in range(0,5):
