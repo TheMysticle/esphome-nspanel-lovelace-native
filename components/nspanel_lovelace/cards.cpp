@@ -467,24 +467,40 @@ std::string &HumidCard::render(std::string &buffer) {
 
     for (auto& mode : modes) {
       uint16_t active_colour = 1374U; // light blue (default/normal)
-      if (mode == translation_item::eco) {
-        active_colour = 1024U; // dark green
-      } else if (mode == translation_item::away) {
-        active_colour = 52857U; // light grey
-      } else if (mode == translation_item::boost) {
+      const icon_char_t* icon = icon_t::air_humidifier;
+      
+      std::string mode_lower = mode;
+      std::transform(mode_lower.begin(), mode_lower.end(), mode_lower.begin(), ::tolower);
+
+      bool is_active = (mode == current_mode);
+
+      if (mode_lower == "off") {
+        icon = icon_t::power;
+        is_active = !this->humid_entity_->is_state(entity_state::off);
         active_colour = 64512U; // dark orange
-      } else if (mode == translation_item::sleep_ || mode == "baby") {
+      } else if (mode_lower == translation_item::eco) {
+        active_colour = 1024U; // dark green
+      } else if (mode_lower == translation_item::away) {
+        active_colour = 52857U; // light grey
+      } else if (mode_lower == translation_item::boost || mode_lower == "strong") {
+        active_colour = 64512U; // dark orange
+        icon = icon_t::flash;
+      } else if (mode_lower == translation_item::sleep_ || mode_lower == "baby") {
         active_colour = 30719U; // light purple
-      } else if (mode == translation_item::comfort) {
+        icon = icon_t::weather_night;
+      } else if (mode_lower == translation_item::comfort) {
         active_colour = 60897U; // light orange
-      } else if (mode == translation_item::home ||
-          mode == translation_item::auto_) {
+      } else if (mode_lower == translation_item::home ||
+          mode_lower == translation_item::auto_ || 
+          mode_lower == "constant humidity" || mode_lower == "constant_humidity") {
         active_colour = 11487U; // light blue
+        icon = icon_t::calendar_sync;
       }
+      
       buffer.append(1, SEPARATOR);
-      buffer.append(CHAR8_CAST(icon_t::air_humidifier)).append(1, SEPARATOR);
+      buffer.append(CHAR8_CAST(icon)).append(1, SEPARATOR);
       buffer.append(std::to_string(active_colour)).append(1, SEPARATOR);
-      buffer.append(1, mode == current_mode ? '1' : '0');
+      buffer.append(1, is_active ? '1' : '0');
       buffer.append(1, SEPARATOR);
       buffer.append(mode);
     }

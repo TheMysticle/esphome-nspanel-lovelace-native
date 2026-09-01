@@ -2291,13 +2291,22 @@ void NSPanelLovelace::process_button_press_(
     // (it was cloned from the thermo card's HMI page), so branch on the
     // entity type to call the correct HA service.
     if (entity_type == entity_type::humidifier) {
-      this->call_ha_service_(
-        entity_type, 
-        ha_action_type::set_mode, 
-        {{
-          {to_string(ha_attr_type::entity_id), entity_id},
-          {to_string(ha_attr_type::mode), value}
-        }});
+      std::string val_lower = value;
+      std::transform(val_lower.begin(), val_lower.end(), val_lower.begin(), ::tolower);
+      if (val_lower == "off") {
+        this->call_ha_service_(
+          entity_type, 
+          ha_action_type::toggle, 
+          entity_id);
+      } else {
+        this->call_ha_service_(
+          entity_type, 
+          ha_action_type::set_mode, 
+          {{
+            {to_string(ha_attr_type::entity_id), entity_id},
+            {to_string(ha_attr_type::mode), value}
+          }});
+      }
     } else {
       this->call_ha_service_(
         entity_type, 
