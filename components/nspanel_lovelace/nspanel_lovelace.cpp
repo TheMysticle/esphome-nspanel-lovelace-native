@@ -1010,7 +1010,11 @@ bool NSPanelLovelace::render_popup_page_update_(StatefulPageItem *item) {
     this->render_fan_detail_update_(item);
   } else if (item->is_type(entity_type::humidifier)) {
     auto entity = item->get_entity_shared();
-    HumidCard card(item->get_uuid(), entity, "");
+    std::string display_name = "";
+    if (auto card_item = page_item_cast<CardItem>(item)) {
+      display_name = card_item->get_display_name();
+    }
+    HumidCard card(item->get_uuid(), entity, display_name);
     card.render(this->command_buffer_);
   } else {
     return false;
