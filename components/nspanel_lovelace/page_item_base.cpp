@@ -261,7 +261,8 @@ void StatefulPageItem::set_on_state_callback_(const char *type) {
       type == entity_type::switch_ ||
       type == entity_type::input_boolean ||
       type == entity_type::automation ||
-      type == entity_type::fan) {
+      type == entity_type::fan ||
+      type == entity_type::humidifier) {
     this->on_state_callback_ = StatefulPageItem::state_on_off_fn;
   } else if (type == entity_type::binary_sensor) {
     this->on_state_callback_ = StatefulPageItem::state_binary_sensor_fn;

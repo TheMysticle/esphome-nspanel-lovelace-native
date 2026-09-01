@@ -2083,7 +2083,8 @@ void NSPanelLovelace::process_button_press_(
         entity_type == entity_type::switch_ ||
         entity_type == entity_type::input_boolean ||
         entity_type == entity_type::automation ||
-        entity_type == entity_type::fan) {
+        entity_type == entity_type::fan ||
+        entity_type == entity_type::humidifier) {
       this->call_ha_service_(
         entity_type, ha_action_type::toggle, entity_id);
     } else if (

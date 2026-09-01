@@ -792,7 +792,7 @@ inline const icon_char_t *get_icon(
 }
 
 // simple_type_mapping
-static constexpr FrozenCharMap<const icon_char_t *, 22> ENTITY_ICON_MAP {{
+static constexpr FrozenCharMap<const icon_char_t *, 23> ENTITY_ICON_MAP {{
   std::pair<const char*, const icon_char_t*>{entity_type::button, icon_t::gesture_tap_button},
   std::pair<const char*, const icon_char_t*>{entity_type::navigate, icon_t::gesture_tap_button},
   std::pair<const char*, const icon_char_t*>{entity_type::input_button, icon_t::gesture_tap_button},
@@ -816,6 +816,7 @@ static constexpr FrozenCharMap<const icon_char_t *, 22> ENTITY_ICON_MAP {{
   std::pair<const char*, const icon_char_t*>{entity_type::input_text, icon_t::cursor_text}, //added
   std::pair<const char*, const icon_char_t*>{entity_type::text, icon_t::cursor_text}, //added
   std::pair<const char*, const icon_char_t*>{entity_type::select, icon_t::gesture_tap_button}, //added
+  std::pair<const char*, const icon_char_t*>{entity_type::humidifier, icon_t::air_humidifier}, //added
 }};
 
 // sensor_mapping_on
@@ -1052,7 +1053,7 @@ static constexpr FrozenCharMap<const char *, 30> ENTITY_RENDER_TYPE_MAP {{
   std::pair<const char*, const char*>{entity_type::person, entity_render_type::text},
   std::pair<const char*, const char*>{entity_type::climate, entity_render_type::text},
   std::pair<const char*, const char*>{entity_type::weather, entity_render_type::text},
-  std::pair<const char*, const char*>{entity_type::humidifier, entity_render_type::text},
+  std::pair<const char*, const char*>{entity_type::humidifier, entity_type::humidifier},
 
   std::pair<const char*, const char*>{entity_type::timer, entity_type::timer},
   std::pair<const char*, const char*>{entity_type::media_player, entity_render_type::media_pl},
