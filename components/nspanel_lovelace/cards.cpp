@@ -373,6 +373,143 @@ std::string &ThermoCard::render(std::string &buffer) {
 }
 
 /*
+ * =============== HumidCard ===============
+ */
+
+HumidCard::HumidCard(const std::string &uuid,
+    const std::shared_ptr<Entity> &humid_entity) :
+    Card(page_type::cardHumid, uuid),
+    humid_entity_(humid_entity) {
+  humid_entity->add_subscriber(this);
+}
+
+HumidCard::HumidCard(const std::string &uuid,
+    const std::shared_ptr<Entity> &humid_entity,
+    const std::string &title) :
+    Card(page_type::cardHumid, uuid, title),
+    humid_entity_(humid_entity) {
+  humid_entity->add_subscriber(this);
+}
+
+HumidCard::HumidCard(
+    const std::string &uuid,
+    const std::shared_ptr<Entity> &humid_entity,
+    const std::string &title, const uint16_t sleep_timeout) :
+    Card(page_type::cardHumid, uuid, title, sleep_timeout),
+    humid_entity_(humid_entity) {
+  humid_entity->add_subscriber(this);
+}
+
+HumidCard::~HumidCard() {
+  humid_entity_->remove_subscriber(this);
+}
+
+void HumidCard::accept(PageVisitor& visitor) { visitor.visit(*this); }
+
+// entityUpd~{title}~{nav}~{entityId}~{currentHumidity}~{destHumidity}~{status}~
+//   {minHumidity}~{maxHumidity}~{humidityStep}~
+//   [icon~activeColor~active~mode] x8 (available modes)~
+//   {currentlyLbl}~{stateLbl}~~{%}~{unused}~{showDetailFlag}
+std::string &HumidCard::render(std::string &buffer) {
+  buffer.assign(this->get_render_instruction())
+      .append(1, SEPARATOR)
+      .append(this->get_title())
+      .append(1, SEPARATOR);
+
+  this->render_nav(buffer).append(1, SEPARATOR);
+
+  buffer.append(this->humid_entity_->get_entity_id());
+  buffer.append(1, SEPARATOR);
+
+  buffer.append(this->humid_entity_->get_attribute(
+    ha_attr_type::current_humidity));
+  buffer.append(1, SEPARATOR);
+
+  buffer.append(this->humid_entity_->get_attribute(
+    ha_attr_type::humidity, "0"));
+  buffer.append(1, SEPARATOR);
+
+  auto action = this->humid_entity_->get_attribute(ha_attr_type::action);
+  if (!action.empty()) {
+    buffer
+      // frontend.component.humidifier.entity_component._.state_attributes.action.state
+      .append(get_translation(action))
+      .append("\r\n(");
+  }
+  // backend.component.humidifier.state
+  buffer.append(get_translation(this->humid_entity_->get_state()));
+  if (!action.empty()) {
+    buffer.append(1, ')');
+  }
+  buffer.append(1, SEPARATOR);
+
+  buffer.append(this->humid_entity_->get_attribute(
+    ha_attr_type::min_humidity, "0"));
+  buffer.append(1, SEPARATOR);
+
+  buffer.append(this->humid_entity_->get_attribute(
+    ha_attr_type::max_humidity, "0"));
+  buffer.append(1, SEPARATOR);
+
+  // humidity step: not exposed by the HA humidifier domain, always 1%
+  buffer.append(1, '1');
+
+  auto& available_modes_str =
+    this->humid_entity_->get_attribute(ha_attr_type::available_modes);
+  if (available_modes_str.empty()) {
+    buffer.append(4 * 8, SEPARATOR);
+  } else {
+    std::vector<std::string> modes;
+    modes.reserve(8);
+    split_str(',', available_modes_str, modes);
+
+    auto& current_mode = this->humid_entity_->get_attribute(ha_attr_type::mode);
+
+    for (auto& mode : modes) {
+      uint16_t active_colour = 1374U; // light blue (default/normal)
+      if (mode == translation_item::eco) {
+        active_colour = 1024U; // dark green
+      } else if (mode == translation_item::away) {
+        active_colour = 52857U; // light grey
+      } else if (mode == translation_item::boost) {
+        active_colour = 64512U; // dark orange
+      } else if (mode == translation_item::sleep_ || mode == "baby") {
+        active_colour = 30719U; // light purple
+      } else if (mode == translation_item::comfort) {
+        active_colour = 60897U; // light orange
+      } else if (mode == translation_item::home ||
+          mode == translation_item::auto_) {
+        active_colour = 11487U; // light blue
+      }
+      buffer.append(1, SEPARATOR);
+      buffer.append(CHAR8_CAST(icon_t::air_humidifier)).append(1, SEPARATOR);
+      buffer.append(std::to_string(active_colour)).append(1, SEPARATOR);
+      buffer.append(1, mode == current_mode ? '1' : '0');
+      buffer.append(1, SEPARATOR);
+      buffer.append(mode);
+    }
+
+    // todo: disperse icons evenly based on size of available_modes
+    buffer.append(4 * (8 - modes.size()), SEPARATOR);
+  }
+
+  buffer.append(1, SEPARATOR);
+
+  buffer.append(get_translation(translation_item::currently)).append(1, SEPARATOR);
+  buffer.append(get_translation(translation_item::state)).append(1, SEPARATOR);
+  // (unused field, kept empty for alignment - matches tALbl on the humid HMI page)
+  buffer.append(1, SEPARATOR);
+  // percent sign (tH)
+  buffer.append(1, '%').append(1, SEPARATOR);
+  // second setpoint (unused, humidifiers only have a single target humidity)
+  buffer.append(1, SEPARATOR);
+  // show extra detail button flag - unused on the humid HMI page, always disabled
+  buffer.append(1, '1');
+
+  return buffer;
+}
+
+/*
  * =============== MediaCard ===============
  */
 

@@ -282,6 +282,9 @@ struct button_type {
   static constexpr const char* modeSwingModes = "mode-swing_modes";
   static constexpr const char* modeFanModes = "mode-fan_modes";
 
+  // humidifier page
+  static constexpr const char* humidUpd = "humidUpd";
+
   // alarm page
   static constexpr const char* disarm = "disarm";
   static constexpr const char* armHome = "arm_home";
@@ -334,6 +337,7 @@ struct entity_type {
   static constexpr const char* sun = "sun";
   static constexpr const char* climate = "climate";
   static constexpr const char* weather = "weather";
+  static constexpr const char* humidifier = "humidifier";
 
   // internal (non HA) types
   static constexpr const char* nav_up = "navUp";
@@ -440,6 +444,7 @@ enum class page_type : uint8_t {
   cardPower,
   cardAlarm,
   popupLight,
+  cardHumid,
 };
 static constexpr const char* page_type_names [] = {
   "",
@@ -455,6 +460,7 @@ static constexpr const char* page_type_names [] = {
   "cardPower",
   "cardAlarm",
   "popupLight",
+  "cardHumid",
 };
 
 inline const char *to_string(page_type type) {
@@ -488,6 +494,8 @@ struct ha_action_type {
   static constexpr const char* set_preset_mode = "set_preset_mode";
   static constexpr const char* set_swing_mode = "set_swing_mode";
   static constexpr const char* set_fan_mode = "set_fan_mode";
+  static constexpr const char* set_humidity = "set_humidity";
+  static constexpr const char* set_mode = "set_mode";
   static constexpr const char* media_next_track = "media_next_track";
   static constexpr const char* media_previous_track = "media_previous_track";
   static constexpr const char* media_play_pause = "media_play_pause";
@@ -583,6 +591,14 @@ enum class ha_attr_type : uint8_t {
   // fan
   percentage,
   percentage_step,
+  // humidifier
+  current_humidity,
+  humidity,
+  min_humidity,
+  max_humidity,
+  mode,
+  available_modes,
+  action,
 };
 
 static constexpr const char* ha_attr_names [] = {
@@ -655,6 +671,14 @@ static constexpr const char* ha_attr_names [] = {
   // fan
   "percentage",
   "percentage_step",
+  // humidifier
+  "current_humidity",
+  "humidity",
+  "min_humidity",
+  "max_humidity",
+  "mode",
+  "available_modes",
+  "action",
 };
 
 inline const char *to_string(ha_attr_type attr) {
@@ -994,7 +1018,7 @@ static constexpr FrozenCharMap<std::array<const icon_char_t *, 4>, 10> COVER_MAP
   std::pair<const char*, std::array<const icon_char_t*, 4>>{entity_cover_type::window, {icon_t::window_open, icon_t::window_closed, icon_t::arrow_up, icon_t::arrow_down}},
 }};
 
-static constexpr FrozenCharMap<const char *, 29> ENTITY_RENDER_TYPE_MAP {{
+static constexpr FrozenCharMap<const char *, 30> ENTITY_RENDER_TYPE_MAP {{
   std::pair<const char*, const char*>{entity_type::cover, entity_render_type::shutter},
   std::pair<const char*, const char*>{entity_type::light, entity_type::light},
 
@@ -1028,6 +1052,7 @@ static constexpr FrozenCharMap<const char *, 29> ENTITY_RENDER_TYPE_MAP {{
   std::pair<const char*, const char*>{entity_type::person, entity_render_type::text},
   std::pair<const char*, const char*>{entity_type::climate, entity_render_type::text},
   std::pair<const char*, const char*>{entity_type::weather, entity_render_type::text},
+  std::pair<const char*, const char*>{entity_type::humidifier, entity_render_type::text},
 
   std::pair<const char*, const char*>{entity_type::timer, entity_type::timer},
   std::pair<const char*, const char*>{entity_type::media_player, entity_render_type::media_pl},
@@ -1074,6 +1099,7 @@ inline const char *get_entity_type(const std::string &entity_id) {
   else if (type == entity_type::sun) return entity_type::sun;
   else if (type == entity_type::climate) return entity_type::climate;
   else if (type == entity_type::weather) return entity_type::weather;
+  else if (type == entity_type::humidifier) return entity_type::humidifier;
 
   // internal (non HA) types
   else if (type == entity_type::uuid) return entity_type::uuid;

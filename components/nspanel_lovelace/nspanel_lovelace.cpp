@@ -295,6 +295,30 @@ void NSPanelLovelace::setup() {
           &NSPanelLovelace::on_entity_attribute_update_, 
           entity_id, to_string(ha_attr_type::hvac_modes));
     }
+    else if (entity->is_type(entity_type::humidifier)) {
+      add_state_subscription = true;
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::current_humidity));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::humidity));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::min_humidity));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::max_humidity));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::mode));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::available_modes));
+      this->subscribe_homeassistant_state_attr(
+          &NSPanelLovelace::on_entity_attribute_update_, 
+          entity_id, to_string(ha_attr_type::action));
+    }
     else if (entity->is_type(entity_type::media_player)) {
       add_state_subscription = true;
       this->subscribe_homeassistant_state_attr(
@@ -2223,13 +2247,41 @@ void NSPanelLovelace::process_button_press_(
       opt_entity->set_attribute(ha_attr_type::target_temp_low, temp_low);
     }
   } else if (button_type == button_type::hvacAction) {
+    // Note: the humid card's mode buttons re-use this same wire instruction
+    // (it was cloned from the thermo card's HMI page), so branch on the
+    // entity type to call the correct HA service.
+    if (entity_type == entity_type::humidifier) {
+      this->call_ha_service_(
+        entity_type, 
+        ha_action_type::set_mode, 
+        {{
+          {to_string(ha_attr_type::entity_id), entity_id},
+          {to_string(ha_attr_type::mode), value}
+        }});
+    } else {
+      this->call_ha_service_(
+        entity_type, 
+        ha_action_type::set_hvac_mode, 
+        {{
+          {to_string(ha_attr_type::entity_id), entity_id},
+          {to_string(ha_attr_type::hvac_mode), value}
+        }});
+    }
+  } else if (button_type == button_type::humidUpd) {
     this->call_ha_service_(
       entity_type, 
-      ha_action_type::set_hvac_mode, 
+      ha_action_type::set_humidity, 
       {{
         {to_string(ha_attr_type::entity_id), entity_id},
-        {to_string(ha_attr_type::hvac_mode), value}
+        {to_string(ha_attr_type::humidity), value}
       }});
+    // Optimistically update local entity state for the same reason as
+    // tempUpd above - avoids the display snapping back to the previous
+    // value before HA confirms the change.
+    auto opt_entity = this->get_entity_(entity_id);
+    if (opt_entity != nullptr) {
+      opt_entity->set_attribute(ha_attr_type::humidity, value);
+    }
   } else if (button_type == button_type::modePresetModes) {
     auto entity = this->get_entity_(entity_id);
     if (entity == nullptr) return;
@@ -2560,6 +2612,13 @@ void NSPanelLovelace::on_entity_attribute_update_(
     // render updates when climate entitites are updated
     if (entity_type == entity_type::climate &&
         page->is_type(page_type::cardThermo)) {
+      force_current_page_update_ = true;
+      return;
+    }
+    // Humid cards don't have items to check, only a single humidifier entity
+    // render updates when humidifier entities are updated
+    else if (entity_type == entity_type::humidifier &&
+        page->is_type(page_type::cardHumid)) {
       force_current_page_update_ = true;
       return;
     }

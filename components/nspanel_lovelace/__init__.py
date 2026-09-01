@@ -65,7 +65,8 @@ ENTITY_TYPES = [
     'sensor','binary_sensor','light','switch','scene','timer','weather','navigate',
     'alarm_control_panel','input_boolean','button','input_button','cover','fan',
     'automation','script','climate','media_player','select','input_select',
-    'number','input_number','text','input_text','lock','sun','person','vacuum'
+    'number','input_number','text','input_text','lock','sun','person','vacuum',
+    'humidifier'
 ]
 REQUIRED_TRANSLATION_KEYS = [
     "none","unknown","preset_mode","swing_mode","fan_mode","activity","away","boost",
@@ -152,13 +153,15 @@ CARD_QR="cardQR"
 CARD_ALARM="cardAlarm"
 CARD_THERMO="cardThermo"
 CARD_MEDIA="cardMedia"
-CARD_TYPE_OPTIONS = [CARD_ENTITIES, CARD_GRID, CARD_GRID2, CARD_QR, CARD_ALARM, CARD_THERMO, CARD_MEDIA]
+CARD_HUMID="cardHumid"
+CARD_TYPE_OPTIONS = [CARD_ENTITIES, CARD_GRID, CARD_GRID2, CARD_QR, CARD_ALARM, CARD_THERMO, CARD_MEDIA, CARD_HUMID]
 
 CONF_CARD_QR_TEXT = "qr_text"
 CONF_CARD_ALARM_ENTITY_ID = "alarm_entity_id"
 CONF_CARD_ALARM_SUPPORTED_MODES = "supported_modes"
 CONF_CARD_THERMO_ENTITY_ID = "thermo_entity_id"
 CONF_CARD_MEDIA_ENTITY_ID = "media_entity_id"
+CONF_CARD_HUMID_ENTITY_ID = "humid_entity_id"
 
 def load_icons():
     global iconJson
@@ -433,6 +436,8 @@ def validate_config(config):
             add_entity_id(card_config.get(CONF_CARD_THERMO_ENTITY_ID))
         if CONF_CARD_MEDIA_ENTITY_ID in card_config:
             add_entity_id(card_config.get(CONF_CARD_MEDIA_ENTITY_ID))
+        if CONF_CARD_HUMID_ENTITY_ID in card_config:
+            add_entity_id(card_config.get(CONF_CARD_HUMID_ENTITY_ID))
 
     if CONF_SCREENSAVER in config:
         screensaver_config = config.get(CONF_SCREENSAVER)
@@ -488,6 +493,9 @@ CONFIG_SCHEMA = cv.All(
                 CARD_THERMO: SCHEMA_CARD_BASE.extend({
                     cv.Required(CONF_CARD_THERMO_ENTITY_ID): valid_entity_id(['climate'])
                 }),
+                CARD_HUMID: SCHEMA_CARD_BASE.extend({
+                    cv.Required(CONF_CARD_HUMID_ENTITY_ID): valid_entity_id(['humidifier'])
+                }),
                 CARD_MEDIA: SCHEMA_CARD_BASE.extend({
                     cv.Optional(CONF_CARD_ENTITIES): cv.ensure_list(SCHEMA_CARD_ENTITY),
                     cv.Required(CONF_CARD_MEDIA_ENTITY_ID): valid_entity_id(['media_player'])
@@ -515,6 +523,7 @@ QRCard = nspanel_lovelace_ns.class_("QRCard")
 AlarmCard = nspanel_lovelace_ns.class_("AlarmCard")
 ThermoCard = nspanel_lovelace_ns.class_("ThermoCard")
 MediaCard = nspanel_lovelace_ns.class_("MediaCard")
+HumidCard = nspanel_lovelace_ns.class_("HumidCard")
 
 DeleteItem = nspanel_lovelace_ns.class_("DeleteItem")
 NavigationItem = nspanel_lovelace_ns.class_("NavigationItem")
@@ -536,6 +545,7 @@ PAGE_MAP = {
     CARD_ALARM: ["nspanel_card_", AlarmCard, PageType.cardAlarm, AlarmButtonItem],
     CARD_THERMO: ["nspanel_card_", ThermoCard, PageType.cardThermo, None],
     CARD_MEDIA: ["nspanel_card_", MediaCard, PageType.cardMedia, GridCardEntityItem],
+    CARD_HUMID: ["nspanel_card_", HumidCard, PageType.cardHumid, None],
 }
 
 def get_new_uuid(prefix: str = ""):
@@ -849,11 +859,13 @@ async def to_code(config):
         #     cg.add(card_class.set_sleep_timeout(sleep_timeout))
         #     cg.add(cg.RawExpression(f"{card_variable}->set_sleep_timeout({sleep_timeout})"))
 
-        if card_config[CONF_CARD_TYPE] in [CARD_ALARM, CARD_THERMO, CARD_MEDIA]:
+        if card_config[CONF_CARD_TYPE] in [CARD_ALARM, CARD_THERMO, CARD_MEDIA, CARD_HUMID]:
             if (card_config[CONF_CARD_TYPE] == CARD_ALARM):
                 entity_id_key = CONF_CARD_ALARM_ENTITY_ID
             elif (card_config[CONF_CARD_TYPE] == CARD_THERMO):
                 entity_id_key = CONF_CARD_THERMO_ENTITY_ID
+            elif (card_config[CONF_CARD_TYPE] == CARD_HUMID):
+                entity_id_key = CONF_CARD_HUMID_ENTITY_ID
             else:
                 entity_id_key = CONF_CARD_MEDIA_ENTITY_ID
             cg.add(cg.RawExpression(

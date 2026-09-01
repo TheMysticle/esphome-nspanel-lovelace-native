@@ -32,6 +32,11 @@ struct translation_item {
   static constexpr const char* cooling = "cooling";
   static constexpr const char* dry = entity_state::dry;
   static constexpr const char* drying = "drying";
+  // humidifier (frontend.component.humidifier.entity_component._.state_attributes.action.state)
+  // note: not added to REQUIRED_TRANSLATION_KEYS in __init__.py, so it will safely fall back
+  //       to displaying the raw untranslated string "humidifying" if your translation file
+  //       doesn't have this key. Add it yourself if you want it translated.
+  static constexpr const char* humidifying = "humidifying";
   static constexpr const char* fan = "fan";
   static constexpr const char* heat = entity_state::heat;
   static constexpr const char* heating = "heating";

@@ -137,6 +137,31 @@ protected:
 };
 
 /*
+ * =============== HumidCard ===============
+ */
+
+class HumidCard : public Card, public IEntitySubscriber {
+public:
+  HumidCard(const std::string &uuid,
+      const std::shared_ptr<Entity> &humid_entity);
+  HumidCard(const std::string &uuid,
+      const std::shared_ptr<Entity> &humid_entity,
+      const std::string &title);
+  HumidCard(
+      const std::string &uuid,
+      const std::shared_ptr<Entity> &humid_entity,
+      const std::string &title, const uint16_t sleep_timeout);
+  virtual ~HumidCard();
+
+  void accept(PageVisitor& visitor) override;
+
+  std::string &render(std::string &buffer) override;
+
+protected:
+  std::shared_ptr<Entity> humid_entity_;
+};
+
+/*
  * =============== MediaCard ===============
  */
 
