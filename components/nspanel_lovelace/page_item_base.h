@@ -202,6 +202,7 @@ public:
     return this->entity_->get_attribute(attr, default_value);
   }
   Entity* get_entity() const { return this->entity_.get(); }
+  std::shared_ptr<Entity> get_entity_shared() const { return this->entity_; }
 
 protected:
   const std::shared_ptr<Entity> entity_;

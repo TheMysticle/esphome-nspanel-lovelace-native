@@ -1000,6 +1000,10 @@ bool NSPanelLovelace::render_popup_page_update_(StatefulPageItem *item) {
     this->render_input_select_detail_update_(item);
   } else if (item->is_type(entity_type::fan)) {
     this->render_fan_detail_update_(item);
+  } else if (item->is_type(entity_type::humidifier)) {
+    auto entity = item->get_entity_shared();
+    HumidCard card(item->get_uuid(), entity, "");
+    card.render(this->command_buffer_);
   } else {
     return false;
   }
