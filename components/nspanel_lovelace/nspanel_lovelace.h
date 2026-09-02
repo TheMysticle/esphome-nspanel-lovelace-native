@@ -296,6 +296,8 @@ protected:
   void send_weather_update_command_();
   std::string weather_entity_id_;
   std::string indoor_temperature_entity_id_;
+  std::string last_weather_temp_sent_;
+  std::string last_indoor_temp_sent_;
   std::string language_;
 
   std::queue<std::string> command_queue_;

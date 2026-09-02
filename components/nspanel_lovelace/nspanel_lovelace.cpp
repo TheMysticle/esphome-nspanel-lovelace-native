@@ -2755,7 +2755,13 @@ void NSPanelLovelace::on_weather_temperature_update_(
 #endif
 ) {
   if (this->screensaver_ == nullptr) return;
-  std::string temp_with_unit = temperature + WeatherItem::temperature_unit;
+  float t = strtof(std::string(temperature).c_str(), nullptr);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%.1f", t);
+  std::string formatted_temp(buf);
+  if (this->last_weather_temp_sent_ == formatted_temp) return;
+  this->last_weather_temp_sent_ = formatted_temp;
+  std::string temp_with_unit = formatted_temp + WeatherItem::temperature_unit;
   // NEW: Use the protocol
   this->send_display_command("weatherTemp~" + temp_with_unit);
 }
@@ -2768,8 +2774,14 @@ void NSPanelLovelace::on_indoor_temperature_update_(
 #endif
 ) {
   if (this->screensaver_ == nullptr) return;
+  float t = strtof(std::string(temperature).c_str(), nullptr);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%.1f", t);
+  std::string formatted_temp(buf);
+  if (this->last_indoor_temp_sent_ == formatted_temp) return;
+  this->last_indoor_temp_sent_ = formatted_temp;
   this->send_display_command(
-      "indoorTemp~" + std::string(temperature) + WeatherItem::temperature_unit + "~42");
+      "indoorTemp~" + formatted_temp + WeatherItem::temperature_unit + "~42");
 }
 
 void NSPanelLovelace::on_weather_temperature_unit_update_(
