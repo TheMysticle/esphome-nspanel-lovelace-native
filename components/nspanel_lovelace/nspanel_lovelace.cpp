@@ -160,11 +160,17 @@ void NSPanelLovelace::setup() {
     #endif
   }
 
-  // --- FORCE INDOOR TEMPERATURE ENTITY TRACKING (mirrors weather fix above) ---
-  // Without this, indoor_temperature_entity_id_ is never added to entities_
-  // until some card happens to reference the same entity_id, so the
-  // screensaver sync (get_entity_) returns nullptr and silently no-ops on
-  // first boot. Explicitly creating + subscribing here fixes that.
+  // --- INDOOR TEMPERATURE: cache tracking + live push (mirrors weather above) ---
+  // create_entity() keeps indoor_temperature_entity_id_ populated in the
+  // internal cache for anything that reads it via get_entity_() (e.g. the
+  // render_item_update_ sync block, popups). That alone isn't enough to get
+  // it on screen promptly though: unlike weather, indoor temp had no direct
+  // push path, so a value arriving from HA while the screensaver was already
+  // showing never triggered a redraw (Screensaver::should_render_status_update
+  // only tracks the left/right status icons, not weather or indoor temp).
+  // Weather works around this by pushing straight to the display the moment
+  // HA reports a new value, regardless of the current page or that redraw
+  // check. on_indoor_temperature_update_ below does the same for indoor temp.
   if (!this->indoor_temperature_entity_id_.empty()) {
     this->create_entity(this->indoor_temperature_entity_id_);
 
@@ -174,12 +180,17 @@ void NSPanelLovelace::setup() {
         optional<std::string>(),
         [this, indoor_id = this->indoor_temperature_entity_id_](esphome::StringRef state) {
           this->on_entity_state_update_(indoor_id, state);
+          this->on_indoor_temperature_update_(indoor_id, state);
         });
 
     // 'temperature' attribute (covers climate.* entities)
-    this->subscribe_homeassistant_state_attr(
-        &NSPanelLovelace::on_entity_attribute_update_,
-        this->indoor_temperature_entity_id_, to_string(ha_attr_type::temperature));
+    api::global_api_server->subscribe_home_assistant_state(
+        this->indoor_temperature_entity_id_,
+        optional<std::string>(to_string(ha_attr_type::temperature)),
+        [this, indoor_id = this->indoor_temperature_entity_id_](esphome::StringRef temperature) {
+          this->on_entity_attribute_update_(indoor_id, to_string(ha_attr_type::temperature), temperature);
+          this->on_indoor_temperature_update_(indoor_id, temperature);
+        });
   }
 
   #ifdef USE_NSPANEL_WEATHER_SERVICE
@@ -2747,6 +2758,18 @@ void NSPanelLovelace::on_weather_temperature_update_(
   std::string temp_with_unit = temperature + WeatherItem::temperature_unit;
   // NEW: Use the protocol
   this->send_display_command("weatherTemp~" + temp_with_unit);
+}
+
+void NSPanelLovelace::on_indoor_temperature_update_(
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2026,1,0)
+    const std::string &entity_id, esphome::StringRef temperature
+#else
+    std::string entity_id, std::string temperature
+#endif
+) {
+  if (this->screensaver_ == nullptr) return;
+  this->send_display_command(
+      "indoorTemp~" + std::string(temperature) + WeatherItem::temperature_unit + "~42");
 }
 
 void NSPanelLovelace::on_weather_temperature_unit_update_(

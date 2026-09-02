@@ -281,6 +281,7 @@ protected:
   void on_weather_temperature_update_(const std::string &entity_id, esphome::StringRef temperature);
   void on_weather_temperature_unit_update_(const std::string &entity_id, esphome::StringRef temperature_unit);
   void on_weather_forecast_update_(const std::string &entity_id, esphome::StringRef forecast_json);
+  void on_indoor_temperature_update_(const std::string &entity_id, esphome::StringRef temperature);
 #else
   void on_entity_state_update_(std::string entity_id, std::string state);
   void on_entity_attribute_update_(
@@ -290,6 +291,7 @@ protected:
   void on_weather_temperature_update_(std::string entity_id, std::string temperature);
   void on_weather_temperature_unit_update_(std::string entity_id, std::string temperature_unit);
   void on_weather_forecast_update_(std::string entity_id, std::string forecast_json);
+  void on_indoor_temperature_update_(std::string entity_id, std::string temperature);
 #endif
   void send_weather_update_command_();
   std::string weather_entity_id_;
