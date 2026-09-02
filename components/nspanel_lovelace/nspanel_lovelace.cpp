@@ -418,7 +418,14 @@ void NSPanelLovelace::setup() {
           entity_id, to_string(ha_attr_type::preset_mode));
     }
 
-    if (add_state_subscription) {
+    // The indoor temp entity already has an explicit state subscription set up
+    // above (which also calls on_indoor_temperature_update_ for the live push).
+    // Adding a second state subscription here via the generic loop causes every
+    // HA state delivery to fire on_entity_state_update_ twice, producing
+    // duplicate "HA update" log lines. The attribute subscriptions (device_class,
+    // unit_of_measurement, etc.) are still added normally since they don't
+    // duplicate anything.
+    if (add_state_subscription && entity_id != this->indoor_temperature_entity_id_) {
       api::global_api_server->subscribe_home_assistant_state(
         entity_id,
         optional<std::string>(),
@@ -783,7 +790,14 @@ void NSPanelLovelace::render_current_page_() {
   this->popup_page_current_uuid_.clear();
 
   this->set_display_timeout(page->get_sleep_timeout());
-  
+
+  // A full page render (pageType just sent) resets the HMI page, so the
+  // temperature text fields are back to their defaults. Clear the dedup
+  // caches so the sync block in render_item_update_ resends the current
+  // values even if they haven't changed since the last push.
+  this->last_weather_temp_sent_.clear();
+  this->last_indoor_temp_sent_.clear();
+
   this->render_item_update_(page);
 }
 
@@ -846,7 +860,16 @@ void NSPanelLovelace::render_item_update_(Page *page) {
           }
           
           if (!temp.empty() && temp != "unknown") {
-            this->send_display_command("weatherTemp~" + temp + WeatherItem::temperature_unit);
+            // Round to 1 decimal and deduplicate against the live-push cache
+            // so re-renders don't resend an unchanged value over UART.
+            float t = strtof(temp.c_str(), nullptr);
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.1f", t);
+            std::string formatted_temp(buf);
+            if (this->last_weather_temp_sent_ != formatted_temp) {
+              this->last_weather_temp_sent_ = formatted_temp;
+              this->send_display_command("weatherTemp~" + formatted_temp + WeatherItem::temperature_unit);
+            }
           } else {
             ESP_LOGD(TAG, "Sync: Weather temp for %s is still empty/unknown", this->weather_entity_id_.c_str());
           }
@@ -881,10 +904,15 @@ void NSPanelLovelace::render_item_update_(Page *page) {
             temp = temp_buf;
           }
 
+          // Deduplicate against the live-push cache so re-renders don't resend
+          // an unchanged value over UART.
           // fixed icon (image slot 42) + temperature value; the HMI shows/hides
           // tIndoor & p2 based on whether this command is sent at all
-          this->send_display_command(
-            "indoorTemp~" + temp + WeatherItem::temperature_unit + "~42");
+          if (this->last_indoor_temp_sent_ != temp) {
+            this->last_indoor_temp_sent_ = temp;
+            this->send_display_command(
+              "indoorTemp~" + temp + WeatherItem::temperature_unit + "~42");
+          }
         } else {
           ESP_LOGD(TAG, "Sync: Indoor temp for %s is still empty/unknown", this->indoor_temperature_entity_id_.c_str());
         }
@@ -2755,7 +2783,11 @@ void NSPanelLovelace::on_weather_temperature_update_(
 #endif
 ) {
   if (this->screensaver_ == nullptr) return;
-  float t = strtof(std::string(temperature).c_str(), nullptr);
+  std::string temp_str(temperature);
+  if (temp_str.empty() || temp_str == "unknown" || temp_str == "unavailable") return;
+  char* end;
+  float t = strtof(temp_str.c_str(), &end);
+  if (end == temp_str.c_str()) return;
   char buf[32];
   snprintf(buf, sizeof(buf), "%.1f", t);
   std::string formatted_temp(buf);
@@ -2774,7 +2806,11 @@ void NSPanelLovelace::on_indoor_temperature_update_(
 #endif
 ) {
   if (this->screensaver_ == nullptr) return;
-  float t = strtof(std::string(temperature).c_str(), nullptr);
+  std::string temp_str(temperature);
+  if (temp_str.empty() || temp_str == "unknown" || temp_str == "unavailable") return;
+  char* end;
+  float t = strtof(temp_str.c_str(), &end);
+  if (end == temp_str.c_str()) return;
   char buf[32];
   snprintf(buf, sizeof(buf), "%.1f", t);
   std::string formatted_temp(buf);
