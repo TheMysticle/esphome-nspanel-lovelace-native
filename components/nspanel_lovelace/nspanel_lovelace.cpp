@@ -160,6 +160,28 @@ void NSPanelLovelace::setup() {
     #endif
   }
 
+  // --- FORCE INDOOR TEMPERATURE ENTITY TRACKING (mirrors weather fix above) ---
+  // Without this, indoor_temperature_entity_id_ is never added to entities_
+  // until some card happens to reference the same entity_id, so the
+  // screensaver sync (get_entity_) returns nullptr and silently no-ops on
+  // first boot. Explicitly creating + subscribing here fixes that.
+  if (!this->indoor_temperature_entity_id_.empty()) {
+    this->create_entity(this->indoor_temperature_entity_id_);
+
+    // main state (covers plain sensor.* entities, e.g. sensor.room_temperature)
+    api::global_api_server->subscribe_home_assistant_state(
+        this->indoor_temperature_entity_id_,
+        optional<std::string>(),
+        [this, indoor_id = this->indoor_temperature_entity_id_](esphome::StringRef state) {
+          this->on_entity_state_update_(indoor_id, state);
+        });
+
+    // 'temperature' attribute (covers climate.* entities)
+    this->subscribe_homeassistant_state_attr(
+        &NSPanelLovelace::on_entity_attribute_update_,
+        this->indoor_temperature_entity_id_, to_string(ha_attr_type::temperature));
+  }
+
   #ifdef USE_NSPANEL_WEATHER_SERVICE
     this->register_service(&NSPanelLovelace::set_weather_forecast_data, "set_weather_forecast_data", {"forecast"});
   #endif
