@@ -129,6 +129,10 @@ public:
 #endif
   void set_weather_entity_id(const std::string &weather_entity_id) { this->weather_entity_id_ = weather_entity_id; }
   void set_indoor_temperature_entity_id(const std::string &entity_id) { this->indoor_temperature_entity_id_ = entity_id; }
+  // Only push indoor temp to the display when it differs from the last sent value by at least this amount. 0 disables.
+  void set_indoor_temperature_change_threshold(float threshold) { this->indoor_temp_change_threshold_ = threshold; }
+  // Push indoor temp to the display at most once per this many milliseconds. 0 disables.
+  void set_indoor_temperature_update_interval(uint32_t interval_ms) { this->indoor_temp_update_interval_ = interval_ms; }
 
   bool get_double_tap_to_unlock() const { return this->double_tap_to_unlock_; }
   void set_double_tap_to_unlock(bool value) { this->double_tap_to_unlock_ = value; }
@@ -294,10 +298,18 @@ protected:
   void on_indoor_temperature_update_(std::string entity_id, std::string temperature);
 #endif
   void send_weather_update_command_();
+  void send_indoor_temperature_(float temperature);
   std::string weather_entity_id_;
   std::string indoor_temperature_entity_id_;
   std::string last_weather_temp_sent_;
   std::string last_indoor_temp_sent_;
+  float indoor_temp_change_threshold_ = 0.0f;
+  uint32_t indoor_temp_update_interval_ = 0;
+  float indoor_temp_last_sent_value_ = 0.0f;
+  bool indoor_temp_has_sent_ = false;
+  uint32_t indoor_temp_last_send_ = 0;
+  float indoor_temp_pending_ = 0.0f;
+  bool indoor_temp_pending_valid_ = false;
   std::string language_;
 
   std::queue<std::string> command_queue_;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <math.h>
 #include <memory>
 #include <stdio.h>
 #include <stdint.h>
@@ -899,16 +900,13 @@ void NSPanelLovelace::render_item_update_(Page *page) {
           char* end;
           float temp_f = std::strtof(temp.c_str(), &end);
           if (end != temp.c_str()) {
-            char temp_buf[16];
-            snprintf(temp_buf, sizeof(temp_buf), "%.1f", temp_f);
-            temp = temp_buf;
-          }
-
-          // Deduplicate against the live-push cache so re-renders don't resend
-          // an unchanged value over UART.
-          // fixed icon (image slot 42) + temperature value; the HMI shows/hides
-          // tIndoor & p2 based on whether this command is sent at all
-          if (this->last_indoor_temp_sent_ != temp) {
+            // Route through the shared sender so the throttle caches stay in
+            // sync. The dedup cache is cleared on full page renders, so this
+            // still guarantees the current value is shown after a pageType.
+            this->send_indoor_temperature_(temp_f);
+          } else if (this->last_indoor_temp_sent_ != temp) {
+            // fixed icon (image slot 42) + temperature value; the HMI shows/hides
+            // tIndoor & p2 based on whether this command is sent at all
             this->last_indoor_temp_sent_ = temp;
             this->send_display_command(
               "indoorTemp~" + temp + WeatherItem::temperature_unit + "~42");
@@ -2798,6 +2796,20 @@ void NSPanelLovelace::on_weather_temperature_update_(
   this->send_display_command("weatherTemp~" + temp_with_unit);
 }
 
+void NSPanelLovelace::send_indoor_temperature_(float temperature) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%.1f", temperature);
+  std::string formatted_temp(buf);
+  this->indoor_temp_last_sent_value_ = temperature;
+  this->indoor_temp_has_sent_ = true;
+  this->indoor_temp_last_send_ = millis();
+  this->indoor_temp_pending_valid_ = false;
+  if (this->last_indoor_temp_sent_ == formatted_temp) return;
+  this->last_indoor_temp_sent_ = formatted_temp;
+  this->send_display_command(
+      "indoorTemp~" + formatted_temp + WeatherItem::temperature_unit + "~42");
+}
+
 void NSPanelLovelace::on_indoor_temperature_update_(
 #if ESPHOME_VERSION_CODE >= VERSION_CODE(2026,1,0)
     const std::string &entity_id, esphome::StringRef temperature
@@ -2811,13 +2823,34 @@ void NSPanelLovelace::on_indoor_temperature_update_(
   char* end;
   float t = strtof(temp_str.c_str(), &end);
   if (end == temp_str.c_str()) return;
-  char buf[32];
-  snprintf(buf, sizeof(buf), "%.1f", t);
-  std::string formatted_temp(buf);
-  if (this->last_indoor_temp_sent_ == formatted_temp) return;
-  this->last_indoor_temp_sent_ = formatted_temp;
-  this->send_display_command(
-      "indoorTemp~" + formatted_temp + WeatherItem::temperature_unit + "~42");
+
+  // Change-threshold gate: skip updates that don't move far enough from the
+  // last value actually sent to the display.
+  if (this->indoor_temp_has_sent_ && this->indoor_temp_change_threshold_ > 0.0f &&
+      fabsf(t - this->indoor_temp_last_sent_value_) < this->indoor_temp_change_threshold_) {
+    return;
+  }
+
+  // Update-interval gate: rate-limit how often we push to the display. If we're
+  // still within the interval, remember the value and schedule a deferred send
+  // for when the interval elapses (HA only pushes on change, so a value we
+  // suppress now would otherwise never reach the display once it settles).
+  if (this->indoor_temp_update_interval_ > 0 && this->indoor_temp_has_sent_) {
+    uint32_t now = millis();
+    uint32_t elapsed = now - this->indoor_temp_last_send_;
+    if (elapsed < this->indoor_temp_update_interval_) {
+      this->indoor_temp_pending_ = t;
+      this->indoor_temp_pending_valid_ = true;
+      uint32_t remaining = this->indoor_temp_update_interval_ - elapsed;
+      this->set_timeout(fnv1_hash("indoor_temp_pending"), remaining, [this]() {
+        if (!this->indoor_temp_pending_valid_) return;
+        this->send_indoor_temperature_(this->indoor_temp_pending_);
+      });
+      return;
+    }
+  }
+
+  this->send_indoor_temperature_(t);
 }
 
 void NSPanelLovelace::on_weather_temperature_unit_update_(

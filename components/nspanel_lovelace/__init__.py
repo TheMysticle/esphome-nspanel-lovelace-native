@@ -139,6 +139,8 @@ CONF_SCREENSAVER_STATUS_ICON_ALT_FONT = "alt_font" # todo: to_code
 CONF_SCREENSAVER_DOUBLE_TAP_TO_UNLOCK = "double_tap_to_unlock"
 CONF_SCREENSAVER_FORECAST_METHOD = "forecast_method"
 CONF_SCREENSAVER_INDOOR_TEMPERATURE = "indoor_temperature"
+CONF_SCREENSAVER_INDOOR_TEMP_CHANGE_THRESHOLD = "change_threshold"
+CONF_SCREENSAVER_INDOOR_TEMP_UPDATE_INTERVAL = "update_interval"
 
 CONF_CARDS = "cards"
 CONF_CARD_TYPE = "type"
@@ -348,6 +350,8 @@ SCHEMA_SCREENSAVER = cv.Schema({
     }),
     cv.Optional(CONF_SCREENSAVER_INDOOR_TEMPERATURE): cv.Schema({
         cv.Required(CONF_ENTITY_ID): valid_entity_id(['sensor', 'climate']),
+        cv.Optional(CONF_SCREENSAVER_INDOOR_TEMP_CHANGE_THRESHOLD, default=0.0): cv.float_range(min=0),
+        cv.Optional(CONF_SCREENSAVER_INDOOR_TEMP_UPDATE_INTERVAL, default="0s"): cv.positive_time_period_milliseconds,
     }),
     cv.Optional(CONF_SCREENSAVER_STATUS_ICON_LEFT): SCHEMA_STATUS_ICON,
     cv.Optional(CONF_SCREENSAVER_STATUS_ICON_RIGHT): SCHEMA_STATUS_ICON,
@@ -812,6 +816,10 @@ async def to_code(config):
             indoor_temp_config = screensaver_config[CONF_SCREENSAVER_INDOOR_TEMPERATURE]
             if CONF_ENTITY_ID in indoor_temp_config:
                 cg.add(nspanel.set_indoor_temperature_entity_id(indoor_temp_config[CONF_ENTITY_ID]))
+            cg.add(nspanel.set_indoor_temperature_change_threshold(
+                indoor_temp_config[CONF_SCREENSAVER_INDOOR_TEMP_CHANGE_THRESHOLD]))
+            cg.add(nspanel.set_indoor_temperature_update_interval(
+                indoor_temp_config[CONF_SCREENSAVER_INDOOR_TEMP_UPDATE_INTERVAL].total_milliseconds))
             screensaver_items = []
             # 1 main weather item + 4 forecast items
             for i in range(0,5):
